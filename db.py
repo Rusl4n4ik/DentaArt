@@ -2,7 +2,6 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
 
-from main import bot
 
 DATABASE_NAME = 'DentArt.sqlite'
 
@@ -12,7 +11,7 @@ session = Session()
 
 Base = declarative_base()
 
-
+###############################################################
 class Users(Base):
     __tablename__ = 'Clients'
     id = Column(Integer, primary_key=True)
@@ -29,7 +28,7 @@ class Admins(Base):
     chat_id = Column(Integer, unique=True)
     first_name = Column(String(100), nullable=True)
     username = Column(String(50), nullable=True)
-
+################################################################################3
 
 def send_broadcast(bot, message: str):
     session = Session()
@@ -37,7 +36,7 @@ def send_broadcast(bot, message: str):
     for user in users:
         bot.send_message(user.chat_id, message)
     session.close()
-
+#########################################################################################
 
 def get_all_users():
     users = session.query(Users).all()
@@ -81,7 +80,7 @@ def get_all_admins():
 def is_admin(chat_id):
     admins = [1373285788]
     return chat_id in admins
-
+##########################################################
 
 def add_user(id, first_name, username, name, phnum):
     session = Session()
@@ -125,8 +124,49 @@ def check_existing(id):
     session = Session()
     result = session.query(Users.chat_id).filter(Users.chat_id == id).all()
     return result
+########################################################################################
 
 
+class Price(Base):
+    __tablename__ = "prices"
+    id = Column(Integer, primary_key=True, index=True)
+    service = Column(String, index=True, unique=True)
+    price = Column(String)
+
+
+def get_all_prices():
+    session = Session()
+    prices = session.query(Price).all()
+    session.close()
+    return prices
+
+
+def get_price(service_number):
+    session = Session()
+    price = session.query(Price).filter_by(service_number=service_number).first()
+    session.close()
+    return price
+
+
+def update_service_price(service, new_price=None):
+    session = Session()
+    price = session.query(Price).filter_by(service=service).first()
+    if price and new_price is not None:
+        price.price = new_price
+        session.commit()
+    session.close()
+    return price
+
+
+def add_price_and_service(service: str, price: str):
+    session = Session()
+    new_price = Price(service=service, price=price)
+    session.add(new_price)
+    session.commit()
+    session.close()
+
+
+########################################################################################
 def create_db():
     Base.metadata.create_all(engine)
     session = Session()

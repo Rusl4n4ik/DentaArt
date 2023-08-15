@@ -8,7 +8,11 @@ class Users(StatesGroup):
 
 class Admins(StatesGroup):
     Broadcast = State()
+    AddServicePrice = State()
+    AddServiceName = State()
+    EditPriceAmount = State()
     EditPrice = State()
+
 
 class Update(StatesGroup):
     Name = State()

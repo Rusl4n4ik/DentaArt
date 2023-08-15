@@ -1,7 +1,8 @@
 from aiogram import types
-from aiogram.dispatcher import FSMContext
+
 from aiogram.dispatcher.filters import Text
 from aiogram.types import ReplyKeyboardRemove, CallbackQuery
+from aiogram.utils.callback_data import CallbackData
 from fsm import Admins
 from main import dp, bot
 import db, keyboard
@@ -75,17 +76,108 @@ async def admin_show_users(callback: types.CallbackQuery):
 async def show_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
 
-    price_list_text = (
-        '💵 Прайс-лист стоматологии "Denta Art":\n'
-        '1. Рутинное стоматологическое обследование: $100-$175\n'
-        '2. Профессиональная чистка зубов: $75-$210\n'
-        '3. Скалирование и планирование корней: $150-$320 за квадрант\n'
-        '4. Дентальный герметик: $20-$50 за зуб\n'
-        '5. Зубное или стоматологическое связывание: $100-$550\n'
-        '6. Заполнения зубов: $75-$250\n'
-        '8. Лечение корневого канала: $500-$1,500\n'
-        '8. Стоматологические мосты: $750-$5,000\n'
-        '9. Стоматологические короны: $1,000-$1,500\n'
-        '10. Зубные протезы: $500-$8,000'
-    )
+    prices = db.get_all_prices()
+    price_list_text = '💵 Прайс-лист стоматологии "Denta Art":\n'
+    for index, price in enumerate(prices, start=1):
+        price_list_text += f"{index}. <b>{price.service}:</b> {price.price}\n"
     await callback_query.message.answer(price_list_text, reply_markup=keyboard.price_list)
+
+
+@dp.message_handler(commands=['add_service'])
+async def add_service_command(message: types.Message):
+    if db.is_admin(message.chat.id):
+        await message.answer("Введите название новой услуги:")
+        await Admins.AddServiceName.set()
+    else:
+        await message.answer("Вы не являетесь администратором.")
+
+
+@dp.message_handler(state=Admins.AddServiceName)
+async def add_service_name(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['name'] = message.text
+    await Admins.AddServicePrice.set()
+    await message.answer("Введите цену для новой услуги:")
+
+
+@dp.message_handler(lambda message: True, state=Admins.AddServicePrice)
+async def add_service_price(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        name = data['name']
+    price = message.text
+    db.add_price_and_service(name, price)
+    await message.answer(f"Услуга '{name}' с ценой {price} успешно добавлена в прайс-лист.")
+    await state.finish()
+
+#
+# @dp.callback_query_handler(text="ch_price")
+# async def change_price_list(callback_query: CallbackQuery, state: FSMContext):
+#     await callback_query.answer()
+#
+#     prices = db.get_all_prices()  # Получите список цен и услуг из базы данных
+#     await callback_query.message.answer("Выберите услугу, для которой вы хотите изменить прайс:",
+#                                         reply_markup=keyboard.create_price_edit_keyboard(prices))
+#     await Admins.EditPrice.set()
+#
+#
+# @dp.callback_query_handler(price_edit_callback.filter(), state=Admins.EditPrice)
+# async def edit_price(callback_query: CallbackQuery, state: FSMContext, callback_data: dict):
+#     await callback_query.answer()
+#     service_index = int(callback_data["service_index"])
+#     selected_price = db.get_price_by_index(service_index)  # Замените на метод получения цены из базы данных по индексу
+#     await callback_query.message.answer(f"Вы редактируете прайс для услуги {selected_price.service}. Введите новый прайс или оставьте пустым, чтобы не изменять:")
+#     await Admins.EditPriceAmount.set()
+#     async with state.proxy() as data:
+#         data["editing_service"] = selected_price.service
+#
+#
+#
+# @dp.message_handler(state=Admins.EditPriceAmount)
+# async def save_new_price_or_service_name(message: types.Message, state: FSMContext):
+#     async with state.proxy() as data:
+#         editing_service = data["editing_service"]
+#
+#     new_price_or_service_name = message.text.strip()
+#
+#     if new_price_or_service_name:
+#         db.update_service_price(editing_service, new_price_or_service_name)
+#         await message.answer("Изменения сохранены.")
+#     else:
+#         await message.answer("Изменения не сохранены.")
+#
+#     await state.finish()
+
+
+
+
+
+
+# price_edit_callback = CallbackData("edit_price", "service")
+
+
+# @dp.callback_query_handler(text="ch_price")
+# async def change_price_list(callback_query: CallbackQuery, state: FSMContext):
+#     await callback_query.answer()
+#     await callback_query.message.answer("Выберите услугу, для которой вы хотите изменить прайс:", reply_markup=keyboard.create_price_edit_keyboard(price))
+#     await Admins.EditPrice.set()
+#     await state.update_data(editing_price=True)
+#
+#
+# @dp.callback_query_handler(price_edit_callback.filter(), state=Admins.EditPrice)
+# async def edit_price(callback_query: CallbackQuery, state: FSMContext, callback_data: dict):
+#     await callback_query.answer()
+#     service_number = callback_data["service"]
+#     await callback_query.message.answer(f"Вы редактируете прайс для услуги {service_number}. Введите новый прайс:")
+#     await Admins.EditPriceAmount.set()
+#     async with state.proxy() as data:
+#         data["editing_service"] = service_number
+#
+#
+# @dp.message_handler(lambda message: message.text.isdigit(), state=Admins.EditPriceAmount)
+# async def save_new_price(message: types.Message, state: FSMContext):
+#     async with state.proxy() as data:
+#         editing_service = data["editing_service"]
+#     new_price = int(message.text)
+#     db.update_price(editing_service, new_price)
+#     await message.answer("Новый прайс успешно сохранен.")
+#     await state.finish()

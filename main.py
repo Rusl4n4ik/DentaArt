@@ -93,17 +93,11 @@ async def price(message: types.Message):
     loading_msg = await message.answer('Загрузка прайс-листа...', reply_markup=types.ReplyKeyboardRemove())
     await asyncio.sleep(1)
     await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
-    await message.answer('💵 Прайс-лист стоматологии "Denta Art":\n'
-                         '1. <b>Рутинное стоматологическое обследование:</b> $100-$175\n'
-                         '2. <b>Профессиональная чистка зубов:</b> $75-$210\n'
-                         '3. <b>Скалирование и планирование корней:</b> $150-$320 за квадрант\n'
-                         '4. <b>Дентальный герметик:</b> $20-$50 за зуб\n'
-                         '5. <b>Зубное или стоматологическое связывание:</b> $100-$550\n'
-                         '6. <b>Заполнения зубов:</b> $75-$250\n'
-                         '8. <b>Лечение корневого канала:</b> $500-$1,500\n'
-                         '8. <b>Стоматологические мосты:</b> $750-$5,000\n'
-                         '9. <b>Стоматологические короны:</b> $1,000-$1,500\n'
-                         '10. <b>Зубные протезы:</b> $500-$8,000\n', reply_markup=keyboard.back_markup)
+    prices = db.get_all_prices()
+    price_list_text = '💵 Прайс-лист стоматологии "Denta Art":\n'
+    for index, price in enumerate(prices, start=1):
+        price_list_text += f"{index}. <b>{price.service}:</b> {price.price}\n"
+    await message.answer(price_list_text, parse_mode="HTML", reply_markup=keyboard.back_markup)
 
 
 @dp.message_handler(text='👤 Личный кабинет')

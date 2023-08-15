@@ -2,7 +2,7 @@ from aiogram import types
 from aiogram.types import ReplyKeyboardRemove, \
     ReplyKeyboardMarkup, KeyboardButton, \
     InlineKeyboardMarkup, InlineKeyboardButton
-
+from aiogram.utils.callback_data import CallbackData
 
 languages = types.InlineKeyboardMarkup(row_width=1)
 languages.add(types.InlineKeyboardButton("🇷🇺 Русский", callback_data='ru'))
@@ -43,24 +43,32 @@ price_list.add(InlineKeyboardButton('✏ Изменить прайс-лист', 
 price_list.add(InlineKeyboardButton('🔙Назад', callback_data='back_ad'))
 
 
-def create_price_edit_keyboard():
-    list_price = InlineKeyboardMarkup(row_width=1)
+price_edit_callback = CallbackData("edit_price", "service")
 
-    services = [
-        '1. Рутинное стоматологическое обследование: $100-$175',
-        '2. Профессиональная чистка зубов: $75-$210',
-        '3. Скалирование и планирование корней: $150-$320 за квадрант',
-        '4. Дентальный герметик: $20-$50 за зуб',
-        '5. Зубное или стоматологическое связывание: $100-$550',
-        '6. Заполнения зубов: $75-$250',
-        '8. Лечение корневого канала: $500-$1,500',
-        '8. Стоматологические мосты: $750-$5,000',
-        '9. Стоматологические короны: $1,000-$1,500',
-        '10. Зубные протезы: $500-$8,000'
-    ]
 
-    for service in services:
-        button = InlineKeyboardButton(service, callback_data=f"edit_price:{service}")
-        list_price.insert(button)
+def create_price_edit_keyboard(prices):
+    buttons = [InlineKeyboardButton(f'{index + 1}. {price.service}', callback_data=price_edit_callback.new(service_index=index)) for index, price in enumerate(prices)]
+    return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
-    return list_price
+# current_prices = {
+#     'Рутинное стоматологическое обследование': '100-$175',
+#     'Профессиональная чистка зубов': '$75-$210',
+#     'Скалирование и планирование корней': '$150-$320 за квадрант',
+#     'Дентальный герметик': '$20-$50 за зуб',
+#     'Зубное или стоматологическое связывание': '$100-$550',
+#     'Заполнения зубов': '$75-$250',
+#     'Лечение корневого канала': '$500-$1,500',
+#     'Стоматологические мосты': '$750-$5,000',
+#     'Стоматологические короны': '$1,000-$1,500',
+#     'Зубные протезы': '$500-$8,000'
+# }
+#
+#
+# def create_price_edit_keyboard():
+#     buttons = [
+#         InlineKeyboardButton(f'{service}: {current_prices.get(service, "N/A")}', callback_data=f"edit_price:{service}")
+#         for service in current_prices
+#     ]
+#     return InlineKeyboardMarkup(inline_keyboard=[buttons])
+
+
