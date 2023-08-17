@@ -200,7 +200,7 @@ class Appointment(Base):
     username = Column(String)
     name = Column(String(50), nullable=False)
     number = Column(String(50), nullable=False)
-    reason = Column(String)
+    reason = Column(String(100))
     time = Column(DateTime, default=datetime.utcnow)
 
 

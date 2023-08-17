@@ -1,3 +1,5 @@
+from enum import auto
+
 from aiogram.dispatcher.filters.state import StatesGroup, State
 
 
@@ -24,6 +26,12 @@ class Appointment(StatesGroup):
     CURRENT_TIME = State()
     SET_REASON = State()
     SET_DAY = State()
+    SET_HOUR_CHOOSE = State()
     SET_HOUR = State()
     SET_MONTH = State()
     CURRENT_MONTH = State()
+    CONFIRM = State()
+    SET_TIME = State()
+    SET_DATE = State()
+
+

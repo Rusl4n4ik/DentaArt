@@ -24,6 +24,11 @@ back_markup = types.InlineKeyboardMarkup().add(back)
 back_ad = InlineKeyboardButton('🔙Назад', callback_data='back_ad')
 back_admin = types.InlineKeyboardMarkup().add(back_ad)
 
+
+confirm = InlineKeyboardButton('✅ Подтвердить запись', callback_data='confirm')
+app_confirm = types.InlineKeyboardMarkup().add(confirm)
+
+
 user_m = InlineKeyboardMarkup(row_width=1)
 user_m.add(types.InlineKeyboardButton("👤 Изменить ФИО", callback_data='ch_name'))
 user_m.add(types.InlineKeyboardButton("📞 Изменить номер телефона", callback_data='ch_number'))
