@@ -190,22 +190,21 @@ def get_calendar_menu(year, month, selected_day=None):
     next_month = (month) % 12
 
     row = []
-    if (year == current_year and month != current_month) or (year > current_year) or (
-            year == current_year and next_month >= current_month):
+    if year == current_year and month != current_month:
         row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{prev_month:02d}'))
-
     row.append(InlineKeyboardButton(
         text=calendar.month_name[month],
         callback_data=f'month:{year}-{month:02d}'
     ))
-
-    if (year == current_year and next_month <= current_month) or (year < current_year) or (
-            year == current_year and next_month <= 9):
+    if year == current_year:
         row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
+    else:
+        row.append(InlineKeyboardButton("◀️ Текущий месяц", callback_data=f'current:{year}-{month:02d}'))
 
     keyboard.row(*row)
 
     return keyboard
+
 
 
 
@@ -246,6 +245,9 @@ async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
         next_year = selected_year + 1 if selected_month == 12 else selected_year
         await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(next_year, next_month))
         await state.update_data(selected_month=next_month)
+
+
+
 
 
 @dp.callback_query_handler(lambda c: json.loads(c.data).get('action') == 'day', state=Appointment.SET_DAY)
