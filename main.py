@@ -283,27 +283,16 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
         reply_markup=get_calendar_menu(selected_year, selected_month, selected_day, selected_month))
 
 
-@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_DAY)
-async def choose_time(callback_query: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    selected_hour = data.get('selected_hour')
-
-    # Используйте обновленный get_hour_menu с галочкой
-    keyboard = get_hour_menu(selected_hour)
-
-    await callback_query.message.edit_reply_markup(reply_markup=keyboard)
-    await Appointment.SET_HOUR_CHOOSE.set()
-
-
 @dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_HOUR)
 async def choose_time(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.message.edit_reply_markup(reply_markup=get_hour_menu())
-    await Appointment.SET_HOUR_CHOOSE.set()
+    data = await state.get_data()
+    selected_hour = data.get('selected_hour')  # Получаем выбранное ранее время
+    await callback_query.message.edit_reply_markup(reply_markup=get_hour_menu(selected_hour))
+    await Appointment.SET_HOUR.set()
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR_CHOOSE)
-async def set_hour_choose(callback_query: CallbackQuery, state: FSMContext):
-
+@dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR)
+async def set_hour(callback_query: CallbackQuery, state: FSMContext):
     selected_hour = callback_query.data.split(':')[1]
 
     data = await state.get_data()
@@ -311,8 +300,9 @@ async def set_hour_choose(callback_query: CallbackQuery, state: FSMContext):
     selected_day = data.get('selected_day')
 
     if selected_month is None:
-        selected_month = datetime.now().month
+        selected_month = datetime.now().month  # Используем текущий месяц, если не выбран
     if selected_day is None:
+        # Обработка ошибки
         await callback_query.answer("Ошибка! Не выбран день.")
         return
 
@@ -321,14 +311,15 @@ async def set_hour_choose(callback_query: CallbackQuery, state: FSMContext):
             year=datetime.now().year,
             month=selected_month,
             day=selected_day,
-            hour=int(selected_hour)
+            hour=int(selected_hour)  # Преобразуем строку в целое число
         )
     except TypeError:
+        # Обработка ошибки
         await callback_query.answer("Ошибка! Неверные данные о времени.")
         return
 
     await callback_query.message.answer('📝 Пожалуйста, кратко опишите <b>симптомы</b> или <b>цель вашей записи</b>. Это поможет нам лучше подготовиться к вашему визиту.', reply_markup=back_markup)
-    await state.update_data(appointment_time=appointment_time, selected_hour=selected_hour)
+    await state.update_data(appointment_time=appointment_time, selected_time=selected_hour)
     await Appointment.SET_REASON.set()
 
 
