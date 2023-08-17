@@ -1,13 +1,17 @@
 import asyncio
+import calendar
+import json
+from datetime import datetime
+
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.types import ReplyKeyboardRemove
-
+from aiogram.types import ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import db,re,keyboard
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 import aiogram.utils.markdown as fmt
-from fsm import Users, Update
+from fsm import Users, Update, Appointment
 
 
 API_TOKEN = '6494026269:AAFptKHhMWHC2vCbUBNfNwrij-dDHANbkdw'
@@ -165,7 +169,145 @@ async def set_number(message: types.Message, state: FSMContext):
             await message.answer("⚠️ <i>Введенный номер телефона кажется некорректным. Пожалуйста, убедитесь, что вы ввели номер в формате </i> '+998XXXXXXXXX'\n<b>Например,<u>'+998902706390'.</u> Попробуйте еще раз: </b>")
 
 
+def get_calendar_menu(year, month, selected_day=None):
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
+    current_day = current_date.day
+
+    max_days = calendar.monthrange(year, month)[1]
+
+    keyboard = InlineKeyboardMarkup(row_width=7)
+
+    for day in range(1, max_days + 1):
+        if (year == current_year and month == current_month and day < current_day) or (year == current_year and month < current_month):
+            continue
+        button = InlineKeyboardButton(text=str(day), callback_data=json.dumps(
+            {'action': 'day', 'year': year, 'month': month, 'day': day}))
+        keyboard.insert(button)
+
+    prev_month = month
+    next_month = (month) % 12
+
+    row = []
+    if (year == current_year and month != current_month) or (year > current_year) or (
+            year == current_year and next_month >= current_month):
+        row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{prev_month:02d}'))
+
+    row.append(InlineKeyboardButton(
+        text=calendar.month_name[month],
+        callback_data=f'month:{year}-{month:02d}'
+    ))
+
+    if (year == current_year and next_month <= current_month) or (year < current_year) or (
+            year == current_year and next_month <= 9):
+        row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
+
+    keyboard.row(*row)
+
+    return keyboard
+
+
+
+def get_hour_menu():
+    current_hour = 8
+    keyboard = InlineKeyboardMarkup(row_width=6)
+
+    for hour in range(current_hour, 19):
+        for minute in range(0, 60, 30):
+            formatted_time = f"{hour:02d}:{minute:02d}"
+            button = InlineKeyboardButton(text=formatted_time, callback_data=f'hour:{formatted_time}')
+            keyboard.insert(button)
+
+    return keyboard
+
+
+@dp.message_handler(text='📅 Запись на прием')
+async def start_appointment(message: types.Message):
+    current_year = datetime.now().year
+    current_month = datetime.now().month
+    await message.answer("Выберите день:", reply_markup=get_calendar_menu(current_year, current_month))
+    await Appointment.SET_DAY.set()
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('prev:') or c.data.startswith('next:'), state=Appointment.SET_DAY)
+async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
+    data = callback_query.data.split(':')
+    direction = data[0]  # 'prev' or 'next'
+    selected_year, selected_month = map(int, data[1].split('-'))
+
+    if direction == 'prev':
+        prev_month = selected_month - 1 if selected_month != 1 else 12
+        prev_year = selected_year if selected_month != 1 else selected_year - 1
+        await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(prev_year, prev_month))
+        await state.update_data(selected_month=prev_month)
+    elif direction == 'next':
+        next_month = selected_month + 1 if selected_month != 12 else 1
+        next_year = selected_year + 1 if selected_month == 12 else selected_year
+        await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(next_year, next_month))
+        await state.update_data(selected_month=next_month)
+
+
+@dp.callback_query_handler(lambda c: json.loads(c.data).get('action') == 'day', state=Appointment.SET_DAY)
+async def set_day(callback_query: CallbackQuery, state: FSMContext):
+    data = json.loads(callback_query.data)
+    selected_year = data.get('year')
+    selected_month = data.get('month')
+    selected_day = data.get('day')
+    await state.update_data(selected_day=selected_day)
+    await callback_query.message.answer('Выберите час:', reply_markup=get_hour_menu())
+    await Appointment.SET_HOUR.set()
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR)
+async def set_hour(callback_query: CallbackQuery, state: FSMContext):
+    selected_hour = int(callback_query.data.split(':')[1])
+
+    data = await state.get_data()
+    selected_month = data.get('selected_month')
+    selected_day = data.get('selected_day')
+
+    if selected_month is None:
+        selected_month = datetime.now().month  # Используем текущий месяц, если не выбран
+    if selected_day is None:
+        # Обработка ошибки
+        await callback_query.answer("Ошибка! Не выбран день.")
+        return
+
+    try:
+        appointment_time = datetime(
+            year=datetime.now().year,
+            month=selected_month,
+            day=selected_day,
+            hour=selected_hour
+        )
+    except TypeError:
+        # Обработка ошибки
+        await callback_query.answer("Ошибка! Неверные данные о времени.")
+        return
+
+    await callback_query.message.answer('Введите причину записи:')
+
+    await state.update_data(appointment_time=appointment_time)
+    await Appointment.SET_REASON.set()
+
+
+@dp.message_handler(lambda message: True, state=Appointment.SET_REASON)
+async def save_appointment_reason(message: types.Message, state: FSMContext):
+    appointment_time = (await state.get_data())['appointment_time']
+    chat_id = message.chat.id
+    user_info = db.get_user_info(chat_id)
+    user_id = message.from_user.id
+    reason = message.text.strip()
+    name = user_info['name']
+    phnum = user_info['phnum']
+
+    db.create_appointment(user_id, message.from_user.username, name, phnum, reason, appointment_time)
+
+    await message.answer(f'Вы успешно записаны на {appointment_time.strftime("%d.%m.%Y %H:%M")}')
+    await state.finish()
+
 if __name__ == '__main__':
     from aiogram import executor
-    from admin import *  # Импортируйте модуль с админ-панелью
+    from admin import *
     executor.start_polling(dp, skip_updates=True)

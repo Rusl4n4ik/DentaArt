@@ -43,12 +43,13 @@ price_list.add(InlineKeyboardButton('✏ Изменить прайс-лист', 
 price_list.add(InlineKeyboardButton('🔙Назад', callback_data='back_ad'))
 
 
-price_edit_callback = CallbackData("edit_price", "service")
+price_edit_callback = CallbackData("price_edit", "service_index")
 
 
 def create_price_edit_keyboard(prices):
     buttons = [InlineKeyboardButton(f'{index + 1}. {price.service}', callback_data=price_edit_callback.new(service_index=index)) for index, price in enumerate(prices)]
-    return InlineKeyboardMarkup(inline_keyboard=[buttons])
+    return InlineKeyboardMarkup(inline_keyboard=[[button] for button in buttons])
+
 
 # current_prices = {
 #     'Рутинное стоматологическое обследование': '100-$175',

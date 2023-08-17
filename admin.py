@@ -1,7 +1,7 @@
 from aiogram import types
 
-from aiogram.dispatcher.filters import Text
-from aiogram.types import ReplyKeyboardRemove, CallbackQuery
+from aiogram.dispatcher.filters import Text, state
+from aiogram.types import ReplyKeyboardRemove, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 from fsm import Admins
 from main import dp, bot
@@ -13,8 +13,12 @@ from fsm import Users, Update
 
 @dp.message_handler(commands=['admin'])
 async def admin_panel(message: types.Message):
-    db.add_admin(message.chat.id, message.from_user.first_name, message.from_user.username)
-    await message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
+    chat_id = message.chat.id
+    if db.is_admin(chat_id):
+        db.add_admin(chat_id, message.from_user.first_name, message.from_user.username)
+        await message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
+    else:
+        await message.answer("У вас нет доступа к админ-панели.")
 
 
 @dp.callback_query_handler(lambda c: c.data == 'back_ad', state='*')
@@ -72,17 +76,6 @@ async def admin_show_users(callback: types.CallbackQuery):
         await callback.answer("Нет зарегистрированных пользователей.")
 
 
-@dp.callback_query_handler(text="price_list")
-async def show_price_list(callback_query: CallbackQuery):
-    await callback_query.answer()
-
-    prices = db.get_all_prices()
-    price_list_text = '💵 Прайс-лист стоматологии "Denta Art":\n'
-    for index, price in enumerate(prices, start=1):
-        price_list_text += f"{index}. <b>{price.service}:</b> {price.price}\n"
-    await callback_query.message.answer(price_list_text, reply_markup=keyboard.price_list)
-
-
 @dp.message_handler(commands=['add_service'])
 async def add_service_command(message: types.Message):
     if db.is_admin(message.chat.id):
@@ -109,7 +102,86 @@ async def add_service_price(message: types.Message, state: FSMContext):
     await message.answer(f"Услуга '{name}' с ценой {price} успешно добавлена в прайс-лист.")
     await state.finish()
 
-#
+
+@dp.callback_query_handler(text="price_list")
+async def show_price_list(callback_query: CallbackQuery):
+    await callback_query.answer()
+
+    prices = db.get_all_prices()
+    price_list_text = '💵 Прайс-лист стоматологии "Denta Art":\n'
+    for index, price in enumerate(prices, start=1):
+        price_list_text += f"{index}. <b>{price.service}:</b> {price.price}\n"
+    await callback_query.message.answer(price_list_text, reply_markup=keyboard.price_list)
+
+
+@dp.callback_query_handler(text="ch_price")
+async def edit_price_list(callback_query: CallbackQuery):
+    await callback_query.answer()
+
+    prices = db.get_all_prices()
+    markup = keyboard.create_price_edit_keyboard(prices)
+
+    await callback_query.message.answer("Выберите услугу, для которой вы хотите изменить название или прайс:",
+                                        reply_markup=markup)
+
+
+@dp.callback_query_handler(keyboard.price_edit_callback.filter())
+async def edit_selected_service(callback_query: CallbackQuery, callback_data: dict):
+    await callback_query.answer()
+
+    service_index = int(callback_data["service_index"])
+    selected_service = db.get_price_by_index(service_index)  # Исправлено здесь
+
+    if selected_service:
+        buttons = [
+            InlineKeyboardButton('Изменить название', callback_data=f"edit_name:{service_index}"),
+            InlineKeyboardButton('Изменить прайс', callback_data=f"ed_price:{service_index}"),
+            InlineKeyboardButton('🔙 Назад', callback_data='ch_price')
+        ]
+
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(*buttons)
+
+        await callback_query.message.answer(f"Выберите действие для услуги '{selected_service.service}':",
+                                            reply_markup=markup)
+    else:
+        await callback_query.message.answer("Услуга не найдена.", reply_markup=keyboard.price_list)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("ed_price:"), state="*")
+async def edit_service_price(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+
+    service_index = int(callback_query.data.split(":")[1])
+    await callback_query.message.answer(f"Введите новый прайс для услуги '{service_index + 1}':")
+
+    async with state.proxy() as data:
+        data["editing_service"] = service_index
+
+    await Admins.EditPriceAmount.set()
+
+
+@dp.message_handler(lambda message: True, state=Admins.EditPriceAmount)
+async def save_new_service_price(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        service_index = data["editing_service"]
+
+    new_price = message.text.strip()
+
+    if new_price:
+        service = db.get_price_by_index(service_index)
+        if service:
+            session = db.Session()
+            db.update_service_price(session, service.service, new_price)
+            session.close()
+            await message.answer("Новый прайс успешно сохранен.", reply_markup=keyboard.back_admin)
+        else:
+            await message.answer("Услуга не найдена.")
+    else:
+        await message.answer("Изменения не сохранены.")
+
+    await state.finish()
+
 # @dp.callback_query_handler(text="ch_price")
 # async def change_price_list(callback_query: CallbackQuery, state: FSMContext):
 #     await callback_query.answer()
