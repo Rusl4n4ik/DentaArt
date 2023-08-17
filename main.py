@@ -177,40 +177,46 @@ def get_calendar_menu(year, month, selected_day=None):
 
     max_days = calendar.monthrange(year, month)[1]
 
-    keyboard = InlineKeyboardMarkup(row_width=7)
-
-    for day in range(1, max_days + 1):
-        if (year == current_year and month == current_month and day < current_day) or (year == current_year and month < current_month):
-            continue
-        button = InlineKeyboardButton(text=str(day), callback_data=json.dumps(
-            {'action': 'day', 'year': year, 'month': month, 'day': day}))
-        keyboard.insert(button)
-
-    prev_month = month
-    next_month = (month) % 12
-
+    keyboard = InlineKeyboardMarkup(row_width=5)
+    next_month = (month + 1) % 12
     row = []
     if year == current_year and month != current_month:
-        row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{prev_month:02d}'))
+        row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{month:02d}'))
     row.append(InlineKeyboardButton(
         text=calendar.month_name[month],
         callback_data=f'month:{year}-{month:02d}'
     ))
-    if year == current_year:
+    if (year == current_year and next_month >= current_month and next_month != current_month + 2) or (
+            year > current_year):
         row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
-    else:
-        row.append(InlineKeyboardButton("◀️ Текущий месяц", callback_data=f'current:{year}-{month:02d}'))
 
     keyboard.row(*row)
+
+    day_buttons = []
+    day_row = []
+    for day in range(1, max_days + 1):
+        if (year == current_year and month == current_month and day < current_day) or (
+                year == current_year and month < current_month):
+            continue
+        button = InlineKeyboardButton(text=str(day), callback_data=json.dumps(
+            {'action': 'day', 'year': year, 'month': month, 'day': day}))
+        day_row.append(button)
+        if len(day_row) == 5:
+            day_buttons.append(day_row)
+            day_row = []
+
+    if day_row:
+        day_buttons.append(day_row)
+
+    for row in day_buttons:
+        keyboard.row(*row)
 
     return keyboard
 
 
-
-
 def get_hour_menu():
     current_hour = 8
-    keyboard = InlineKeyboardMarkup(row_width=6)
+    keyboard = InlineKeyboardMarkup(row_width=3)
 
     for hour in range(current_hour, 19):
         for minute in range(0, 60, 30):
@@ -229,25 +235,26 @@ async def start_appointment(message: types.Message):
     await Appointment.SET_DAY.set()
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('prev:') or c.data.startswith('next:'), state=Appointment.SET_DAY)
+@dp.callback_query_handler(lambda c: c.data.startswith('prev:') or c.data.startswith('next:'),
+                           state=Appointment.SET_DAY)
 async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
     data = callback_query.data.split(':')
     direction = data[0]  # 'prev' or 'next'
     selected_year, selected_month = map(int, data[1].split('-'))
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
 
     if direction == 'prev':
-        prev_month = selected_month - 1 if selected_month != 1 else 12
-        prev_year = selected_year if selected_month != 1 else selected_year - 1
+        prev_month = (selected_month - 1) % 12
+        prev_year = selected_year - 1 if prev_month == 0 else selected_year
         await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(prev_year, prev_month))
         await state.update_data(selected_month=prev_month)
     elif direction == 'next':
-        next_month = selected_month + 1 if selected_month != 12 else 1
-        next_year = selected_year + 1 if selected_month == 12 else selected_year
+        next_month = (selected_month) % 12
+        next_year = selected_year + 1 if next_month == 1 else selected_year
         await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(next_year, next_month))
         await state.update_data(selected_month=next_month)
-
-
-
 
 
 @dp.callback_query_handler(lambda c: json.loads(c.data).get('action') == 'day', state=Appointment.SET_DAY)
