@@ -211,8 +211,7 @@ def create_appointment(chat_id, username, name, number, reason, time):
         session.commit()
 
 
-
-def get_appointments_by_chat_id(session: Session, chat_id: int):
+def get_appointments(session: Session, chat_id: int):
     return session.query(Appointment).filter_by(chat_id=chat_id).all()
 
 

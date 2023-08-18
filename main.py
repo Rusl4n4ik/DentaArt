@@ -283,26 +283,40 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
         reply_markup=get_calendar_menu(selected_year, selected_month, selected_day, selected_month))
 
 
+@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_DAY)
+async def choose_time(callback_query: CallbackQuery, state: FSMContext):
+    print('я тут')
+    print(callback_query.data)
+    data = await state.get_data()
+    selected_hour = data.get('selected_hour')
+
+    # Используйте обновленный get_hour_menu с галочкой
+    keyboard = get_hour_menu(selected_hour)
+
+    await callback_query.message.edit_reply_markup(reply_markup=keyboard)
+    print(callback_query.data)
+    await Appointment.SET_HOUR_CHOOSE.set()
+
+
 @dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_HOUR)
 async def choose_time(callback_query: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    selected_hour = data.get('selected_hour')  # Получаем выбранное ранее время
-    await callback_query.message.edit_reply_markup(reply_markup=get_hour_menu(selected_hour))
-    await Appointment.SET_HOUR.set()
+    await callback_query.message.edit_reply_markup(reply_markup=get_hour_menu())
+    await Appointment.SET_HOUR_CHOOSE.set()
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR)
-async def set_hour(callback_query: CallbackQuery, state: FSMContext):
+@dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR_CHOOSE)
+async def set_hour_choose(callback_query: CallbackQuery, state: FSMContext):
+    print(callback_query.data)
     selected_hour = callback_query.data.split(':')[1]
-
+    selected_minute = callback_query.data.split(':')[-1]
+    print(f'hour {selected_hour}:{selected_minute}')
     data = await state.get_data()
     selected_month = data.get('selected_month')
     selected_day = data.get('selected_day')
 
     if selected_month is None:
-        selected_month = datetime.now().month  # Используем текущий месяц, если не выбран
+        selected_month = datetime.now().month
     if selected_day is None:
-        # Обработка ошибки
         await callback_query.answer("Ошибка! Не выбран день.")
         return
 
@@ -311,15 +325,15 @@ async def set_hour(callback_query: CallbackQuery, state: FSMContext):
             year=datetime.now().year,
             month=selected_month,
             day=selected_day,
-            hour=int(selected_hour)  # Преобразуем строку в целое число
+            hour=int(selected_hour),
+            minute=int(selected_minute)
         )
     except TypeError:
-        # Обработка ошибки
         await callback_query.answer("Ошибка! Неверные данные о времени.")
         return
 
     await callback_query.message.answer('📝 Пожалуйста, кратко опишите <b>симптомы</b> или <b>цель вашей записи</b>. Это поможет нам лучше подготовиться к вашему визиту.', reply_markup=back_markup)
-    await state.update_data(appointment_time=appointment_time, selected_time=selected_hour)
+    await state.update_data(appointment_time=appointment_time, selected_hour=selected_hour)
     await Appointment.SET_REASON.set()
 
 
@@ -383,10 +397,46 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
             f"Ждем вас <b>{appointment_date} в {appointment_time_str}</b>. Если у вас возникнут вопросы или изменения в планах, пожалуйста, свяжитесь с нами заранее. Спасибо за выбор стоматологии '<b>Denta Art</b>'! 🦷\n\n"
             f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
         )
-
-        await callback_query.message.answer(confirmation_message, parse_mode="HTML")
+        await callback_query.message.answer(confirmation_message, reply_markup= back_markup, parse_mode="HTML")
         await state.finish()
 
+        group_chat_id = -921482477  # ID чата группы
+
+        confirmation_group = (
+            f"🆕 Новая запись в стоматологию\n"
+            f"<b>ФИО</b>: {name}\n"
+            f"<b>Номер телефона</b>: {phnum}\n"
+            f"<b>Дата записи</b>: {appointment_date}\n"
+            f"<b>Время записи</b>: {appointment_time_str}\n"
+            f"<b>Описание симптомов/цель визита</b>: {data['reason']}\n\n\n"
+            f"<i>Пожалуйста, учтите данную запись в расписании и подготовьте все необходимое для приема.</i>"
+        )
+
+        await bot.send_message(chat_id=group_chat_id, text=confirmation_group, parse_mode="HTML")
+
+
+@dp.callback_query_handler(lambda c: c.data == 'my_app')
+async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
+    chat_id = callback_query.from_user.id
+    appointments = db.get_appointments(db.session, chat_id)
+
+    if appointments:
+        message_text = "Ваши записи:\n"
+        for idx, appointment in enumerate(appointments, start=1):
+            appointment_info = f"{appointment.time.strftime('%d %B %Y, %H:%M')} - {appointment.reason}"
+            message_text += f"{idx}. {appointment_info}\n"
+        keyboard = types.InlineKeyboardMarkup()
+        for reminder in reminders:
+            button_text = f'{reminder.text} ({reminder.date.strftime("%d.%m.%Y %H:%M")})'
+            view_button = InlineKeyboardButton(text=button_text, callback_data=f'view_reminder:{reminder.id}')
+            delete_button = InlineKeyboardButton(text='Delete 🗑', callback_data=f'delete_reminder:{reminder.id}')
+            keyboard.add(view_button, delete_button)
+
+        await message.reply('Here are your reminders:', reply_markup=keyboard)
+        message_text += "Для просмотра информации о записи или отмены, выберите нужную запись:"
+        await callback_query.message.edit_text(message_text)
+    else:
+        await callback_query.message.edit_text("У вас нет записей.")
 
 
 if __name__ == '__main__':
