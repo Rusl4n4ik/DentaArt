@@ -2,7 +2,7 @@ import asyncio
 import calendar
 import json
 from datetime import datetime
-from keyboard import back_markup
+from keyboard import back_markup, russian_month_names
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove, CallbackQuery
@@ -348,11 +348,7 @@ async def save_appointment_reason(message: types.Message, state: FSMContext):
         name = user_info['name']
         phnum = user_info['phnum']
 
-        russian_month_names = [
-            'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-        ]
-        appointment_date = appointment_time.strftime(f"%d {russian_month_names[appointment_time.month - 1]} %Y года")
+        appointment_date = appointment_time.strftime(f"%d {keyboard.russian_month_names[appointment_time.month - 1]} %Y года")
         appointment_time_str = appointment_time.strftime("%H:%M")  # Форматируем время как "часы:минуты"
 
         confirmation_message = (
@@ -382,12 +378,7 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
         reason = data['reason']
         name = user_info['name']
         phnum = user_info['phnum']
-
-        russian_month_names = [
-            'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-        ]
-        appointment_date = appointment_time.strftime(f"%d {russian_month_names[appointment_time.month - 1]} %Y года")
+        appointment_date = appointment_time.strftime(f"%d {keyboard.russian_month_names[appointment_time.month - 1]} %Y года")
         appointment_time_str = appointment_time.strftime("%H:%M")
 
         db.create_appointment(user_id, callback_query.from_user.username, name, phnum, reason, appointment_time)
@@ -400,7 +391,7 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
         await callback_query.message.answer(confirmation_message, reply_markup= back_markup, parse_mode="HTML")
         await state.finish()
 
-        group_chat_id = -921482477  # ID чата группы
+        group_chat_id = -921482477
 
         confirmation_group = (
             f"🆕 Новая запись в стоматологию\n"
@@ -421,22 +412,148 @@ async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
     appointments = db.get_appointments(db.session, chat_id)
 
     if appointments:
-        message_text = "Ваши записи:\n"
-        for idx, appointment in enumerate(appointments, start=1):
-            appointment_info = f"{appointment.time.strftime('%d %B %Y, %H:%M')} - {appointment.reason}"
-            message_text += f"{idx}. {appointment_info}\n"
-        keyboard = types.InlineKeyboardMarkup()
-        for reminder in reminders:
-            button_text = f'{reminder.text} ({reminder.date.strftime("%d.%m.%Y %H:%M")})'
-            view_button = InlineKeyboardButton(text=button_text, callback_data=f'view_reminder:{reminder.id}')
-            delete_button = InlineKeyboardButton(text='Delete 🗑', callback_data=f'delete_reminder:{reminder.id}')
-            keyboard.add(view_button, delete_button)
+        message_text = "📅 <b>Ваши записи</b>:\n"
+        keyboard = InlineKeyboardMarkup()
 
-        await message.reply('Here are your reminders:', reply_markup=keyboard)
-        message_text += "Для просмотра информации о записи или отмены, выберите нужную запись:"
-        await callback_query.message.edit_text(message_text)
+        for idx, appointment in enumerate(appointments, start=1):
+            appointment_date = appointment.time.strftime(f"%d {russian_month_names[appointment.time.month - 1]} %Y года").lstrip('0')
+            appointment_time_str = appointment.time.strftime("%H:%M")
+            appointment_reason = appointment.reason
+            button_text = f"{appointment_date}, {appointment_time_str}"
+            button = InlineKeyboardButton(text=button_text, callback_data=f'app_info:{idx}')
+            keyboard.add(button)
+            message_text += f"<b>{idx}</b>. {appointment_date}, {appointment_time_str} - {appointment_reason}\n"
+
+        message_text += '\n\n\n'
+        message_text += "<b><i>Для просмотра информации о записи или отмены, выберите нужную запись</i></b>:"
+        await callback_query.message.edit_text(message_text, reply_markup=keyboard)
     else:
         await callback_query.message.edit_text("У вас нет записей.")
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('app_info:'))
+async def show_appointment_info(callback_query: CallbackQuery, state: FSMContext):
+    app_index = int(callback_query.data.split(':')[1])
+    chat_id = callback_query.from_user.id
+    appointments = db.get_appointments(db.session, chat_id)
+
+    if 1 <= app_index <= len(appointments):
+        selected_appointment = appointments[app_index - 1]
+        appointment_date = selected_appointment.time.strftime(
+            f"%e {russian_month_names[selected_appointment.time.month - 1]} %Y года")
+        appointment_time_str = selected_appointment.time.strftime("%H:%M")
+        appointment_reason = selected_appointment.reason  # Получаем причину записи
+        appointment_info = (
+            f"📋 Информация о записи:\n"
+            f"<b>Дата записи</b>: {appointment_date}\n"
+            f"<b>Время записи</b>: {appointment_time_str}\n"
+            f"<b>Симптомы/цель визита</b>: {appointment_reason}\n\n\n"
+            f"<b>Для отмены, используйте кнопку:</b>\n"
+            f"❌ Отменить запись"
+        )
+        await callback_query.message.edit_text(appointment_info, reply_markup=keyboard.cancel_m, parse_mode='HTML')
+        await state.update_data(
+            appointment_id=selected_appointment.id,
+            selected_day=selected_appointment.time.day,
+            selected_month=selected_appointment.time.month,
+            selected_year=selected_appointment.time.year,
+            selected_hour=selected_appointment.time.hour,
+            selected_minute=selected_appointment.time.minute,
+            appointment_reason=appointment_reason  # Сохраняем причину записи в данных состояния
+        )
+        await Appointment.CANCEL_CONFIRM.set()
+    else:
+        await callback_query.answer("Неверный номер записи.")
+
+
+@dp.callback_query_handler(lambda c: c.data == 'cancel', state=Appointment.CANCEL_CONFIRM)
+async def cancel_appointment_confirm(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    data = await state.get_data()
+    appointment_id = data.get('appointment_id')
+
+    if appointment_id:
+        await callback_query.message.edit_text(
+            "Вы выбрали запись на "
+            f"{data['selected_day']} {russian_month_names[data['selected_month'] - 1]} {data['selected_year']} года "
+            f"в {data['selected_hour']}:{data['selected_minute']}. Вы действительно хотите отменить эту запись?",
+            reply_markup=keyboard.del_confirm
+        )
+        await Appointment.DELETE_CONFIRM.set()
+    else:
+        await callback_query.answer("Произошла ошибка. Пожалуйста, попробуйте снова.")
+
+
+@dp.callback_query_handler(lambda c: c.data == 'del_confirm', state=Appointment.DELETE_CONFIRM)
+async def delete_appointment_confirm(callback_query: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    appointment_id = data.get('appointment_id')
+    if appointment_id:
+        await callback_query.message.edit_text(
+            "Вы выбрали запись на "
+            f"{data['selected_day']} {russian_month_names[data['selected_month'] - 1]} {data['selected_year']} года "
+            f"в {data['selected_hour']}:{data['selected_minute']}. Вы действительно хотите отменить эту запись?\n"
+        )
+        await callback_query.message.edit_text('📝 <b>Пожалуйста, введите причину отмены записи</b>:\n'
+                                               'Это поможет нам улучшить качество нашего сервиса.',
+                                               reply_markup=keyboard.back_markup)
+        await Appointment.DELETE_REASON.set()
+    else:
+        await callback_query.answer("Произошла ошибка. Пожалуйста, попробуйте снова.")
+
+
+@dp.message_handler(state=Appointment.DELETE_REASON)
+async def set_cancel_reason(message: types.Message, state: FSMContext):
+    cancel_reason = message.text
+
+    await state.update_data(cancel_reason=cancel_reason)  # Сохраняем причину отмены в данных состояния
+
+    data = await state.get_data()
+    appointment_id = data.get('appointment_id')
+
+    if appointment_id:
+        deleted = db.delete_appointment(db.session, appointment_id)
+        if deleted:
+
+            appointment_date = data['selected_day']
+            appointment_month = russian_month_names[data['selected_month'] - 1]
+            appointment_year = data['selected_year']
+            appointment_time = f"{data['selected_hour']}:{data['selected_minute']}"
+
+            # Получаем причину записи из данных состояния
+            appointment_reason = data.get('appointment_reason', '')
+
+            chat_id = message.chat.id
+            user_info = db.get_user_info(chat_id)
+            name = user_info['name']
+            phnum = user_info['phnum']
+
+            cancel_reason = data['cancel_reason']
+            group_chat_id = -921482477
+            cancel_group = (
+                f"🚫 Запись в стоматологию отменена\n"
+                f"<b>ФИО</b>: {name}\n"
+                f"<b>Номер телефона</b>: {phnum}\n"
+                f"<b>Дата записи</b>: {appointment_date} {appointment_month} {appointment_year} года\n"
+                f"<b>Время записи</b>: {appointment_time}\n"
+                f"<b>Симптомы/цель визита</b>: {appointment_reason}\n"  # Используем appointment_reason здесь
+                f"<b>Причина отмены</b>: {cancel_reason}\n\n\n"
+                f"<i>Пожалуйста, учтите данную отмену в расписании.</i>"
+            )
+
+            await bot.send_message(group_chat_id, cancel_group, parse_mode='HTML')
+
+            await message.answer(
+                f"Ваша запись на {appointment_date} {appointment_month} {appointment_year} года в {appointment_time} успешно отменена. "
+                "Спасибо за предоставленную информацию! Если у вас возникнут другие планы или вопросы, всегда рады помочь.",
+                reply_markup=keyboard.back_markup
+            )
+        else:
+            await message.answer("Произошла ошибка при отмене записи.")
+    else:
+        await message.answer("Произошла ошибка. Пожалуйста, попробуйте снова.")
+
+    await state.finish()  # Завершаем состояние
 
 
 if __name__ == '__main__':

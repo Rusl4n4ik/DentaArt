@@ -33,5 +33,8 @@ class Appointment(StatesGroup):
     CONFIRM = State()
     SET_TIME = State()
     SET_DATE = State()
+    DELETE_CONFIRM = State()
+    CANCEL_CONFIRM = State()
+    DELETE_REASON = State()
 
 

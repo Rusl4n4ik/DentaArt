@@ -30,6 +30,17 @@ app_confirm.add(confirm)
 app_confirm.add(back)
 
 
+del_confirm = InlineKeyboardMarkup(row_width=1)
+delete = InlineKeyboardButton('✅ Да', callback_data='del_confirm')
+del_confirm.add(delete)
+del_confirm.add(back)
+
+
+cancel_m = InlineKeyboardMarkup(row_width=1)
+cancel = InlineKeyboardButton('❌ Отменить запись', callback_data='cancel')
+cancel_m.add(cancel)
+cancel_m.add(back)
+
 user_m = InlineKeyboardMarkup(row_width=1)
 user_m.add(types.InlineKeyboardButton("✏ Мои записи", callback_data='my_app'))
 user_m.add(types.InlineKeyboardButton("👤 Изменить ФИО", callback_data='ch_name'))
@@ -56,6 +67,12 @@ price_edit_callback = CallbackData("price_edit", "service_index")
 def create_price_edit_keyboard(prices):
     buttons = [InlineKeyboardButton(f'{index + 1}. {price.service}', callback_data=price_edit_callback.new(service_index=index)) for index, price in enumerate(prices)]
     return InlineKeyboardMarkup(inline_keyboard=[[button] for button in buttons])
+
+
+russian_month_names = [
+            'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+        ]
 
 
 # current_prices = {

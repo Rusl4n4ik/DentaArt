@@ -215,6 +215,16 @@ def get_appointments(session: Session, chat_id: int):
     return session.query(Appointment).filter_by(chat_id=chat_id).all()
 
 
+def delete_appointment(session: Session, appointment_id: int):
+    appointment = session.query(Appointment).get(appointment_id)
+    if appointment:
+        session.delete(appointment)
+        session.commit()
+        return True
+    return False
+
+
+
 ########################################################################################
 def create_db():
     Base.metadata.create_all(engine)
