@@ -216,18 +216,6 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
                 year == current_year and month < current_month):
             continue
         button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
-
-        # Проверяем, есть ли записи на этот день в базе данных
-        if db.session:
-            appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-            if appointments_on_day:
-                available_hours = db.get_available_hours(appointments_on_day)
-                if not available_hours:  # Если все времена заняты, помечаем день как "занят"
-                    button_text += " ❌"
-                else:
-                    available_hours_text = ", ".join(available_hours)
-                    button_text += f" ({available_hours_text})"
-
         button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
             {'action': 'day', 'year': year, 'month': month, 'day': day}))
         day_row.append(button)
@@ -247,22 +235,18 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
     return keyboard
 
 
-def get_hour_menu(selected_hour=None, year=None, month=None, day=None, db=None):
+def get_hour_menu(selected_hour=None):
     start_hour = 8
     end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
 
-    appointments_on_day = db.get_appointments_on_day(db, year, month, day) if db and year and month and day else []
-    available_hours = db.get_available_hours(appointments_on_day)
-
     for hour in range(start_hour, end_hour + 1):
-        for minute in (0, 30):
+        for minute in range(0, 60, 30):
+            if hour == end_hour and minute > 0:
+                break
             formatted_time = f"{hour:02d}:{minute:02d}"
             button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
-            if formatted_time in available_hours:
-                button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
-            else:
-                button = InlineKeyboardButton(text=button_text, callback_data='unavailable_hour')
+            button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
             keyboard.insert(button)
 
     back_button = InlineKeyboardButton("Назад", callback_data='back')
