@@ -2,6 +2,9 @@ import asyncio
 import calendar
 import json
 from datetime import datetime
+
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
+
 from keyboard import back_markup, russian_month_names
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -12,12 +15,20 @@ from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 import aiogram.utils.markdown as fmt
 from fsm import Users, Update, Appointment
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
+
+
+
+scheduler = AsyncIOScheduler()
+scheduler.start()
 
 API_TOKEN = '6494026269:AAFptKHhMWHC2vCbUBNfNwrij-dDHANbkdw'
 
 bot = Bot(token=API_TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot, storage=MemoryStorage())
+dp.middleware.setup(LoggingMiddleware())
 tmp = {}
 
 
@@ -205,6 +216,18 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
                 year == current_year and month < current_month):
             continue
         button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
+
+        # Проверяем, есть ли записи на этот день в базе данных
+        if db.session:
+            appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+            if appointments_on_day:
+                available_hours = db.get_available_hours(appointments_on_day)
+                if not available_hours:  # Если все времена заняты, помечаем день как "занят"
+                    button_text += " ❌"
+                else:
+                    available_hours_text = ", ".join(available_hours)
+                    button_text += f" ({available_hours_text})"
+
         button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
             {'action': 'day', 'year': year, 'month': month, 'day': day}))
         day_row.append(button)
@@ -219,21 +242,31 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
         keyboard.row(*row)
 
     keyboard.row(InlineKeyboardButton("🕘 Выбрать время", callback_data='action:choose_time'))
-    keyboard.row(InlineKeyboardButton("Назад", callback_data='back'))
+    keyboard.row(InlineKeyboardButton("🔙Назад", callback_data='back'))
 
     return keyboard
 
 
-def get_hour_menu(selected_hour=None):
-    current_hour = 8
+def get_hour_menu(selected_hour=None, year=None, month=None, day=None, db=None):
+    start_hour = 8
+    end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
 
-    for hour in range(current_hour, 19):
-        for minute in range(0, 60, 30):
+    appointments_on_day = db.get_appointments_on_day(db, year, month, day) if db and year and month and day else []
+    available_hours = db.get_available_hours(appointments_on_day)
+
+    for hour in range(start_hour, end_hour + 1):
+        for minute in (0, 30):
             formatted_time = f"{hour:02d}:{minute:02d}"
             button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
-            button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+            if formatted_time in available_hours:
+                button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+            else:
+                button = InlineKeyboardButton(text=button_text, callback_data='unavailable_hour')
             keyboard.insert(button)
+
+    back_button = InlineKeyboardButton("Назад", callback_data='back')
+    keyboard.row(back_button)
 
     return keyboard
 
@@ -428,7 +461,7 @@ async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
         message_text += "<b><i>Для просмотра информации о записи или отмены, выберите нужную запись</i></b>:"
         await callback_query.message.edit_text(message_text, reply_markup=keyboard)
     else:
-        await callback_query.message.edit_text("У вас нет записей.")
+        await callback_query.message.edit_text("У вас нет записей.", reply_markup=back_markup)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('app_info:'))
@@ -523,7 +556,7 @@ async def set_cancel_reason(message: types.Message, state: FSMContext):
             # Получаем причину записи из данных состояния
             appointment_reason = data.get('appointment_reason', '')
 
-            chat_id = message.chat.id
+            chat_id = message.chat.id  # Используем selected_chat_id
             user_info = db.get_user_info(chat_id)
             name = user_info['name']
             phnum = user_info['phnum']
@@ -554,6 +587,20 @@ async def set_cancel_reason(message: types.Message, state: FSMContext):
         await message.answer("Произошла ошибка. Пожалуйста, попробуйте снова.")
 
     await state.finish()  # Завершаем состояние
+  # Завершаем состояние
+
+
+def delete_expired_appointments():
+    current_time = datetime.utcnow()
+    expired_appointments = db.session.query(db.Appointment).filter(db.Appointment.time < current_time).all()
+
+    for appointment in expired_appointments:
+        db.session.delete(appointment)
+
+    db.session.commit()
+
+
+scheduler.add_job(delete_expired_appointments, trigger=CronTrigger(hour=0, minute=0))
 
 
 if __name__ == '__main__':

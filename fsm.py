@@ -15,6 +15,8 @@ class Admins(StatesGroup):
     EditPriceAmount = State()
     EditPriceList = State()
     EditService = State()
+    BroadcastTextAppointments = State()
+    BroadcastTextAll = State()
 
 
 class Update(StatesGroup):

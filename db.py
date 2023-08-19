@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, func
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, func, extract
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.orm.exc import NoResultFound
 
 
@@ -30,7 +30,42 @@ class Admins(Base):
     chat_id = Column(Integer, unique=True)
     first_name = Column(String(100), nullable=True)
     username = Column(String(50), nullable=True)
+
+
+class Price(Base):
+    __tablename__ = "prices"
+    id = Column(Integer, primary_key=True, index=True)
+    service = Column(String, index=True, unique=True)
+    price = Column(String)
+
+
+class Appointment(Base):
+    __tablename__ = "appointment"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(Integer)
+    username = Column(String)
+    name = Column(String(50), nullable=False)
+    number = Column(String(50), nullable=False)
+    reason = Column(String(100))
+    time = Column(DateTime, default=datetime.utcnow)
+
+
+def get_appointments_on_day(db: Session, year: int, month: int, day: int):
+    return db.query(Appointment).filter(
+        extract('year', Appointment.time) == year,
+        extract('month', Appointment.time) == month,
+        extract('day', Appointment.time) == day
+    ).all()
+
+
+def get_available_hours(appointments_on_day):
+    all_hours = set([f"{hour:02d}:{minute:02d}" for hour in range(8, 19) for minute in (0, 30)])
+    booked_hours = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day])
+    available_hours = all_hours - booked_hours
+    return available_hours
 ################################################################################3
+
 
 def send_broadcast(bot, message: str):
     session = Session()
@@ -38,6 +73,25 @@ def send_broadcast(bot, message: str):
     for user in users:
         bot.send_message(user.chat_id, message)
     session.close()
+
+
+def get_users_with_appointments(session: Session):
+    users_with_appointments = (
+        session.query(Users)
+            .filter(Users.chat_id.in_(session.query(Appointment.chat_id)))
+            .all()
+    )
+    return users_with_appointments
+
+
+def get_user_appointments(session: Session, chat_id: int):
+    user = session.query(Users).filter_by(chat_id=chat_id).first()
+    if user:
+        return user.appointments
+    return []
+
+
+
 #########################################################################################
 
 
@@ -131,13 +185,6 @@ def check_existing(id):
 ########################################################################################
 
 
-class Price(Base):
-    __tablename__ = "prices"
-    id = Column(Integer, primary_key=True, index=True)
-    service = Column(String, index=True, unique=True)
-    price = Column(String)
-
-
 def get_all_prices():
     session = Session()
     prices = session.query(Price).all()
@@ -151,7 +198,6 @@ def add_price_and_service(service: str, price: str):
     session.add(new_price)
     session.commit()
     session.close()
-
 
 
 def get_price_by_index(index):
@@ -191,17 +237,11 @@ def update_service_name(index, new_name):
         session.close()
 
 
-#######################################################################################
-class Appointment(Base):
-    __tablename__ = "appointment"
+# def get_users_with_appointments(session: Session):
+#     users_with_appointments = session.query(Users).filter(Users.appointments.any()).all()
+#     return users_with_appointments
 
-    id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer)
-    username = Column(String)
-    name = Column(String(50), nullable=False)
-    number = Column(String(50), nullable=False)
-    reason = Column(String(100))
-    time = Column(DateTime, default=datetime.utcnow)
+#######################################################################################
 
 
 def create_appointment(chat_id, username, name, number, reason, time):
@@ -213,6 +253,10 @@ def create_appointment(chat_id, username, name, number, reason, time):
 
 def get_appointments(session: Session, chat_id: int):
     return session.query(Appointment).filter_by(chat_id=chat_id).all()
+
+
+def get_all_appointments(session: Session):
+    return session.query(Appointment).all()
 
 
 def delete_appointment(session: Session, appointment_id: int):

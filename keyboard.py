@@ -52,7 +52,16 @@ admin_keyboard = InlineKeyboardMarkup(row_width=2)
 admin_keyboard.add(
     InlineKeyboardButton('Просмотреть всех пользователей', callback_data='admin_show_users'),
     InlineKeyboardButton('📢 Рассылка', callback_data='broadcast'),
-    InlineKeyboardButton('💵 Прайс-лист', callback_data='price_list')
+    InlineKeyboardButton('💵 Прайс-лист', callback_data='price_list'),
+    InlineKeyboardButton('📝 Просмотреть записи', callback_data='view_app')
+)
+
+
+broadcast_option_menu = InlineKeyboardMarkup(row_width=1)
+broadcast_option_menu.add(
+    InlineKeyboardButton(text='📣 Рассылка всем', callback_data='broadcast_all'),
+    InlineKeyboardButton(text='📣 Рассылка пользователям с записями', callback_data='broadcast_with_appointments'),
+    InlineKeyboardButton(text='🔙Назад', callback_data='back_ad')
 )
 
 

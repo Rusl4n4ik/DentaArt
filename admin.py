@@ -28,15 +28,35 @@ async def go_back(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
 
 
-@dp.callback_query_handler(text="broadcast")
+@dp.callback_query_handler(text="broadcast", state="*")
 async def broadcast_button_handler(callback_query: CallbackQuery, state: FSMContext):
     chat_id = callback_query.from_user.id
     if db.is_admin(chat_id):
         await callback_query.answer()
-        await callback_query.message.answer("Введите текст сообщения для рассылки:", reply_markup=keyboard.back_admin)
+        await callback_query.message.edit_text("Выберите опцию рассылки:", reply_markup=keyboard.broadcast_option_menu)
         await Admins.Broadcast.set()
     else:
         await callback_query.answer("Вы не являетесь администратором.")
+
+
+@dp.callback_query_handler(text="broadcast_option", state=Admins.Broadcast)
+async def broadcast_option_handler(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await callback_query.message.edit_text("Выберите опцию рассылки:", reply_markup=keyboard.broadcast_option_menu)
+
+
+@dp.callback_query_handler(text="broadcast_all", state=Admins.Broadcast)
+async def broadcast_all_handler(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await callback_query.message.answer("Введите текст сообщения для рассылки:", reply_markup=keyboard.back_admin)
+    await Admins.BroadcastTextAll.set()
+
+
+@dp.callback_query_handler(text="broadcast_with_appointments", state=Admins.Broadcast)
+async def broadcast_with_appointments_handler(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await callback_query.message.answer("Введите текст сообщения для рассылки пользователям с записями:", reply_markup=keyboard.back_admin)
+    await Admins.BroadcastTextAppointments.set()
 
 
 @dp.message_handler(commands=("cancel"), state=Admins.Broadcast)
@@ -46,15 +66,11 @@ async def cancel_broadcast(message: types.Message, state: FSMContext):
     await message.answer("Рассылка отменена.", reply_markup=keyboard.back_admin)
 
 
-@dp.message_handler(state=Admins.Broadcast)
-async def process_broadcast(message: types.Message, state: FSMContext):
+@dp.message_handler(state=Admins.BroadcastTextAll)
+async def process_broadcast_all(message: types.Message, state: FSMContext):
     users = db.get_all_users()
     total_users = len(users)
-    if total_users == 1:
-        await bot.send_message(users[0]['chat_id'], message.text)
-        await state.finish()
-        await message.answer(f"Сообщение успешно отправлено 1 пользователю.", reply_markup=keyboard.back_admin)
-    elif total_users > 1:
+    if total_users >= 1:
         for user in users:
             chat_id = user['chat_id']
             await bot.send_message(chat_id, message.text)
@@ -65,15 +81,107 @@ async def process_broadcast(message: types.Message, state: FSMContext):
         await message.answer("Нет доступных пользователей для рассылки.", reply_markup=keyboard.back_admin)
 
 
+@dp.message_handler(state=Admins.BroadcastTextAppointments)
+async def process_broadcast_appointments(message: types.Message, state: FSMContext):
+    users_with_appointments = db.get_users_with_appointments(db.session)
+    total_users = len(users_with_appointments)
+    if total_users >= 1:
+        for user in users_with_appointments:
+            chat_id = user.chat_id
+            await bot.send_message(chat_id, message.text)
+        await state.finish()
+        await message.answer(f"Сообщение успешно отправлено {total_users} пользователям с записями.", reply_markup=keyboard.back_admin)
+    else:
+        await state.finish()
+        await message.answer("Нет пользователей с записями для рассылки.", reply_markup=keyboard.back_admin)
+
+
 @dp.callback_query_handler(lambda c: c.data == 'admin_show_users')
 async def admin_show_users(callback: types.CallbackQuery):
     users = db.get_all_users()
     if users:
-        user_list = "\n".join([f"<b>{user['name']}:</b> {user['phnum']}" for user in users])
+        page = 0
+        per_page = 1  # Количество пользователей на странице
+        total_pages = (len(users) + per_page - 1) // per_page
+
+        user_list = ""
+        for idx, user in enumerate(users[page * per_page:(page + 1) * per_page], start=page * per_page + 1):
+            appointments = db.get_appointments(db.session, user['chat_id'])
+            appointments_info = ', '.join([appointment.time.strftime('%d %b %Y %H:%M') for appointment in appointments])
+            user_info = f"<b>{idx}</b>. {user['name']}:\n{user['phnum']}\n"
+            if appointments_info:
+                user_info += "<b>📝 Предстоящие записи:</b>\n"
+                for appointment in appointments:
+                    appointment_date = appointment.time.strftime(
+                        f"%e {keyboard.russian_month_names[appointment.time.month - 1]} %Y года")
+                    appointment_time_str = appointment.time.strftime("%H:%M")
+                    user_info += f"{appointment_date} в {appointment_time_str}\n"
+            user_list += user_info + "\n"
+
+        navigation_buttons = []
+        if page > 0:
+            navigation_buttons.append(
+                InlineKeyboardButton("⬅️", callback_data=f"admin_show_users_page:{page - 1}"))
+        if page < total_pages - 1:
+            navigation_buttons.append(
+                InlineKeyboardButton("➡️", callback_data=f"admin_show_users_page:{page + 1}"))
+
+        reply_markup = InlineKeyboardMarkup().add(*navigation_buttons)
+
         await callback.answer()
-        await bot.send_message(callback.from_user.id, f"Список пользователей:\n{user_list}", reply_markup=keyboard.back_admin)
+        await bot.send_message(callback.from_user.id, f"Список пользователей:\n{user_list}", reply_markup=reply_markup)
     else:
         await callback.answer("Нет зарегистрированных пользователей.")
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('admin_show_users_page:'))
+async def admin_show_users_page(callback: types.CallbackQuery):
+    page = int(callback.data.split(':')[1])
+    users = db.get_all_users()
+    per_page = 1  # Количество пользователей на странице
+    total_pages = (len(users) + per_page - 1) // per_page
+
+    user_list = ""
+    for idx, user in enumerate(users[page * per_page:(page + 1) * per_page], start=page * per_page + 1):
+        appointments = db.get_appointments(db.session, user['chat_id'])
+        appointments_info = ', '.join([appointment.time.strftime('%d %b %Y %H:%M') for appointment in appointments])
+        user_info = f"<b>{idx}</b>. {user['name']}:\n{user['phnum']}\n"
+        if appointments_info:
+            user_info += "<b>📝 Предстоящие записи:</b>\n"
+            for appointment in appointments:
+                appointment_date = appointment.time.strftime(
+                    f"%e {keyboard.russian_month_names[appointment.time.month - 1]} %Y года")
+                appointment_time_str = appointment.time.strftime("%H:%M")
+                user_info += f"{appointment_date} в {appointment_time_str}\n"
+        if len(user_list + user_info) >= 4096:
+            break
+        user_list += user_info + "\n"
+
+    navigation_buttons = []
+    if page > 0:
+        navigation_buttons.append(
+            InlineKeyboardButton("⬅️", callback_data=f"admin_show_users_page:{page - 1}"))
+    if page < total_pages - 1:
+        navigation_buttons.append(
+            InlineKeyboardButton("➡️", callback_data=f"admin_show_users_page:{page + 1}"),)
+    reply_markup = InlineKeyboardMarkup(row_width=2)
+    for button in navigation_buttons:
+        reply_markup.insert(button)
+    reply_markup.row(keyboard.back_ad)
+
+    await callback.message.delete()
+    await callback.answer()
+    await bot.send_message(callback.from_user.id, f"Список пользователей:\n{user_list}", reply_markup=reply_markup)
+    await callback.message.delete()
+
+
+def get_user_appointments_info(user):
+    appointments = db.get_user_appointments(db.session, user['chat_id'])
+    if appointments:
+        appointments_info = ', '.join([appointment.time.strftime('%d %b %Y %H:%M') for appointment in appointments])
+
+        return appointments_info
+    return None
 
 
 @dp.message_handler(commands=['add_service'])
@@ -181,6 +289,42 @@ async def save_new_service_price(message: types.Message, state: FSMContext):
         await message.answer("Изменения не сохранены.")
 
     await state.finish()
+
+
+@dp.callback_query_handler(text='view_app')
+async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+
+    appointments = db.get_all_appointments(db.session)  # Получите список всех записей
+
+    if appointments:
+        message = "Список всех записей:\n\n"
+        for idx, appointment in enumerate(appointments, start=1):
+            appointment_date = appointment.time.strftime(
+                f"%d {keyboard.russian_month_names[appointment.time.month - 1]} %Y года").lstrip('0')
+            appointment_time_str = appointment.time.strftime("%H:%M")
+            appointment_reason = appointment.reason
+
+            user_info = db.get_user_info(appointment.chat_id)
+            if user_info:
+                user_name = user_info['name']
+                user_phnum = user_info['phnum']
+            else:
+                user_name = "Информация недоступна"
+                user_phnum = "Информация недоступна"
+
+            message += (
+                f"<b>Запись #{idx}</b>\n"
+                f"<b>Дата записи:</b> {appointment_date}\n"
+                f"<b>Время записи:</b> {appointment_time_str}\n"
+                f"<b>Пациент:</b> {user_name}\n"
+                f"<b>Номер телефона:</b> {user_phnum}\n"
+                f"<b>Симптомы/цель визита:</b> {appointment_reason}\n\n"
+            )
+    else:
+        message = "Нет записей."
+
+    await callback_query.message.edit_text(message, reply_markup=keyboard.back_admin, parse_mode='HTML')
 
 # @dp.callback_query_handler(text="ch_price")
 # async def change_price_list(callback_query: CallbackQuery, state: FSMContext):
