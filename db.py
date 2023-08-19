@@ -60,10 +60,11 @@ def get_appointments_on_day(db: Session, year: int, month: int, day: int):
 
 
 def get_available_hours(appointments_on_day):
-    all_hours = set([f"{hour:02d}:{minute:02d}" for hour in range(8, 19) for minute in (0, 30)])
+    all_hours = set([f"{hour:02d}:{minute:02d}" for hour in range(8, 19) for minute in (0, 30) if not (hour == 18 and minute > 0)])
     booked_hours = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day])
     available_hours = all_hours - booked_hours
     return available_hours
+
 ################################################################################3
 
 

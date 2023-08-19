@@ -53,7 +53,8 @@ admin_keyboard.add(
     InlineKeyboardButton('Просмотреть всех пользователей', callback_data='admin_show_users'),
     InlineKeyboardButton('📢 Рассылка', callback_data='broadcast'),
     InlineKeyboardButton('💵 Прайс-лист', callback_data='price_list'),
-    InlineKeyboardButton('📝 Просмотреть записи', callback_data='view_app')
+    InlineKeyboardButton('📝 Просмотреть записи', callback_data='view_app'),
+    InlineKeyboardButton('📝 Календарь', callback_data='calendar')
 )
 
 

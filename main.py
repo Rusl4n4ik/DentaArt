@@ -8,7 +8,7 @@ from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from keyboard import back_markup, russian_month_names
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.types import ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import ReplyKeyboardRemove, CallbackQuery, ParseMode
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import db,re,keyboard
 from aiogram.dispatcher import FSMContext
@@ -225,7 +225,9 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
                 {'action': 'day', 'year': year, 'month': month, 'day': day}))
             day_row.append(button)
         else:
-            button = InlineKeyboardButton(f"{day} ❌", callback_data='no_available_times')
+            button_text = f"{day} ❌" if selected_day == day and selected_month == month else f"{day} ❌"
+            button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
+                {'action': 'day', 'year': year, 'month': month, 'day': day}))
             day_row.append(button)
 
         if len(day_row) == 5:
@@ -262,7 +264,7 @@ def get_hour_menu(year, month, day, selected_hour=None):
                 button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
                 keyboard.insert(button)
 
-    back_button = InlineKeyboardButton("Назад", callback_data='back')
+    back_button = InlineKeyboardButton("🔙Назад", callback_data='back')
     keyboard.row(back_button)
 
     return keyboard
@@ -305,16 +307,17 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
     selected_year = data.get('year')
     selected_month = data.get('month')
     selected_day = data.get('day')
-    await state.update_data(selected_day=selected_day)
+
+    await state.update_data(selected_year=selected_year, selected_month=selected_month, selected_day=selected_day)
     await Appointment.SET_HOUR.set()
-    await callback_query.message.edit_reply_markup(
-        reply_markup=get_calendar_menu(selected_year, selected_month, selected_day, selected_month))
+
+    # В этом месте также добавьте кнопку "Выбрать время"
+    reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
+    await callback_query.message.edit_reply_markup(reply_markup=reply_markup)
 
 
 @dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_HOUR)
 async def choose_time(callback_query: CallbackQuery, state: FSMContext):
-    print('я тут')
-    print(callback_query.data)
     data = await state.get_data()
     selected_year = data.get('selected_year')
     selected_month = data.get('selected_month')
@@ -322,13 +325,9 @@ async def choose_time(callback_query: CallbackQuery, state: FSMContext):
 
     # Используйте обновленный get_hour_menu с галочкой
     keyboard = get_hour_menu(selected_year, selected_month, selected_day)
-
-    await callback_query.message.edit_reply_markup(reply_markup=keyboard)
-    print(callback_query.data)
+    msg = f'<b>Вы выбрали дату</b>: {selected_day} {russian_month_names[selected_month - 1]} {selected_year}\nТеперь выберите время из списка доступных, на которое хотите назначить запись:'
+    await callback_query.message.edit_text(msg, reply_markup=keyboard, parse_mode=ParseMode.HTML)
     await Appointment.SET_HOUR_CHOOSE.set()
-
-
-
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR_CHOOSE)
@@ -359,7 +358,11 @@ async def set_hour_choose(callback_query: CallbackQuery, state: FSMContext):
         await callback_query.answer("Ошибка! Неверные данные о времени.")
         return
 
-    await callback_query.message.answer('📝 Пожалуйста, кратко опишите <b>симптомы</b> или <b>цель вашей записи</b>. Это поможет нам лучше подготовиться к вашему визиту.', reply_markup=back_markup)
+    await callback_query.message.edit_text(
+        '📝 Пожалуйста, кратко опишите <b>симптомы</b> или <b>цель вашей записи</b>. Это поможет нам лучше подготовиться к вашему визиту.',
+        reply_markup=back_markup,
+        parse_mode=ParseMode.HTML
+    )
     await state.update_data(appointment_time=appointment_time, selected_hour=selected_hour)
     await Appointment.SET_REASON.set()
 
@@ -415,7 +418,7 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
             f"Ждем вас <b>{appointment_date} в {appointment_time_str}</b>. Если у вас возникнут вопросы или изменения в планах, пожалуйста, свяжитесь с нами заранее. Спасибо за выбор стоматологии '<b>Denta Art</b>'! 🦷\n\n"
             f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
         )
-        await callback_query.message.answer(confirmation_message, reply_markup= back_markup, parse_mode="HTML")
+        await callback_query.message.edit_text(confirmation_message, reply_markup= back_markup, parse_mode="HTML")
         await state.finish()
 
         group_chat_id = -921482477
