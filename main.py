@@ -215,10 +215,19 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
         if (year == current_year and month == current_month and day < current_day) or (
                 year == current_year and month < current_month):
             continue
-        button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
-        button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
-            {'action': 'day', 'year': year, 'month': month, 'day': day}))
-        day_row.append(button)
+
+        appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+        available_hours = db.get_available_hours(appointments_on_day)
+
+        if available_hours:
+            button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
+            button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
+                {'action': 'day', 'year': year, 'month': month, 'day': day}))
+            day_row.append(button)
+        else:
+            button = InlineKeyboardButton(f"{day} ❌", callback_data='no_available_times')
+            day_row.append(button)
+
         if len(day_row) == 5:
             day_buttons.append(day_row)
             day_row = []
@@ -235,19 +244,23 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
     return keyboard
 
 
-def get_hour_menu(selected_hour=None):
+def get_hour_menu(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
+
+    appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+    available_hours = db.get_available_hours(appointments_on_day)
 
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:
                 break
             formatted_time = f"{hour:02d}:{minute:02d}"
-            button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
-            button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
-            keyboard.insert(button)
+            if formatted_time in available_hours:
+                button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
+                button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+                keyboard.insert(button)
 
     back_button = InlineKeyboardButton("Назад", callback_data='back')
     keyboard.row(back_button)
@@ -294,31 +307,28 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
     selected_day = data.get('day')
     await state.update_data(selected_day=selected_day)
     await Appointment.SET_HOUR.set()
-
-    # В этом месте также добавьте кнопку "Выбрать время"
     await callback_query.message.edit_reply_markup(
         reply_markup=get_calendar_menu(selected_year, selected_month, selected_day, selected_month))
 
 
-@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_DAY)
+@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_HOUR)
 async def choose_time(callback_query: CallbackQuery, state: FSMContext):
     print('я тут')
     print(callback_query.data)
     data = await state.get_data()
-    selected_hour = data.get('selected_hour')
+    selected_year = data.get('selected_year')
+    selected_month = data.get('selected_month')
+    selected_day = data.get('selected_day')
 
     # Используйте обновленный get_hour_menu с галочкой
-    keyboard = get_hour_menu(selected_hour)
+    keyboard = get_hour_menu(selected_year, selected_month, selected_day)
 
     await callback_query.message.edit_reply_markup(reply_markup=keyboard)
     print(callback_query.data)
     await Appointment.SET_HOUR_CHOOSE.set()
 
 
-@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Appointment.SET_HOUR)
-async def choose_time(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.message.edit_reply_markup(reply_markup=get_hour_menu())
-    await Appointment.SET_HOUR_CHOOSE.set()
+
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Appointment.SET_HOUR_CHOOSE)
