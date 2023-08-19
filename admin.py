@@ -1,11 +1,15 @@
-from aiogram import types
+import calendar
+import json
+from datetime import datetime
 
+from aiogram import types
+from main import navigate_calendar
 from aiogram.dispatcher.filters import Text, state
-from aiogram.types import ReplyKeyboardRemove, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ReplyKeyboardRemove, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from aiogram.utils.callback_data import CallbackData
 from fsm import Admins
 from main import dp, bot
-import db, keyboard
+import db, keyboard, main
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from fsm import Users, Update
@@ -325,6 +329,156 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
         message = "Нет записей."
 
     await callback_query.message.edit_text(message, reply_markup=keyboard.back_admin, parse_mode='HTML')
+
+
+def get_calendar_menu(year, month, selected_day=None, selected_month=None):
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
+    current_day = current_date.day
+
+    max_days = calendar.monthrange(year, month)[1]
+
+    # Собственные названия месяцев на русском языке
+    month_names = [
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    ]
+
+    keyboard = InlineKeyboardMarkup(row_width=2)
+
+    next_month = (month + 1) % 12
+    row = []
+    if year == current_year and month != current_month:
+        row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{month:02d}'))
+    row.append(InlineKeyboardButton(
+        text=month_names[month - 1],  # Индексы начинаются с 0
+        callback_data=f'month:{year}-{month:02d}'
+    ))
+    if (year == current_year and next_month >= current_month and next_month != current_month + 2) or (
+            year > current_year):
+        row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
+    keyboard.row(*row)
+
+    day_buttons = []
+    day_row = []
+    for day in range(1, max_days + 1):
+        if (year == current_year and month == current_month and day < current_day) or (
+                year == current_year and month < current_month):
+            continue
+
+        appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+        available_hours = db.get_available_hours(appointments_on_day)
+
+        if available_hours:
+            button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
+            button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
+                {'action': 'day', 'year': year, 'month': month, 'day': day}))
+            day_row.append(button)
+        else:
+            button_text = f"{day} ❌" if selected_day == day and selected_month == month else f"{day} ❌"
+            button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
+                {'action': 'day', 'year': year, 'month': month, 'day': day}))
+            day_row.append(button)
+
+        if len(day_row) == 5:
+            day_buttons.append(day_row)
+            day_row = []
+
+    if day_row:
+        day_buttons.append(day_row)
+
+    for row in day_buttons:
+        keyboard.row(*row)
+
+    keyboard.row(InlineKeyboardButton("🕘 Выбрать время", callback_data='action:choose_time'))
+    keyboard.row(InlineKeyboardButton("🔙Назад", callback_data='back_ad'))
+
+    return keyboard
+
+
+def get_hour_menu(year, month, day, selected_hour=None):
+    start_hour = 8
+    end_hour = 18
+    keyboard = InlineKeyboardMarkup(row_width=3)
+
+    appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+    available_hours = db.get_available_hours(appointments_on_day)
+
+    for hour in range(start_hour, end_hour + 1):
+        for minute in range(0, 60, 30):
+            if hour == end_hour and minute > 0:
+                break
+            formatted_time = f"{hour:02d}:{minute:02d}"
+            if formatted_time in available_hours:
+                button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
+                button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+                keyboard.insert(button)
+
+    back_button = InlineKeyboardButton("🔙Назад", callback_data='back_ad')
+    keyboard.row(back_button)
+
+    return keyboard
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('prev:') or c.data.startswith('next:'),)
+async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
+    data = callback_query.data.split(':')
+    direction = data[0]  # 'prev' or 'next'
+    selected_year, selected_month = map(int, data[1].split('-'))
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
+
+    if direction == 'prev':
+        prev_month = (selected_month - 1) % 12
+        prev_year = selected_year - 1 if prev_month == 0 else selected_year
+        await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(prev_year, prev_month))
+        await state.update_data(selected_month=prev_month)
+    elif direction == 'next':
+        next_month = (selected_month) % 12
+        next_year = selected_year + 1 if next_month == 1 else selected_year
+        await callback_query.message.edit_text("Выберите день:", reply_markup=get_calendar_menu(next_year, next_month))
+        await state.update_data(selected_month=next_month)
+
+
+@dp.callback_query_handler(lambda c: json.loads(c.data).get('action') == 'day', state=Admins.ViewDay)
+async def set_day(callback_query: CallbackQuery, state: FSMContext):
+    data = json.loads(callback_query.data)
+    selected_year = data.get('year')
+    selected_month = data.get('month')
+    selected_day = data.get('day')
+
+    await state.update_data(selected_year=selected_year, selected_month=selected_month, selected_day=selected_day)
+    await Admins.ViewHour.set()
+
+    # В этом месте также добавьте кнопку "Выбрать время"
+    reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
+    await callback_query.message.edit_reply_markup(reply_markup=reply_markup)
+
+
+@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Admins.ViewHour)
+async def choose_time(callback_query: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    selected_year = data.get('selected_year')
+    selected_month = data.get('selected_month')
+    selected_day = data.get('selected_day')
+
+    # Используйте обновленный get_hour_menu с галочкой
+    keyboard = get_hour_menu(selected_year, selected_month, selected_day)
+    await callback_query.message.edit_text(text='Доступные временые слоты' ,reply_markup=keyboard)
+    await Admins.HOUR_CHOOSE.set()
+
+
+@dp.callback_query_handler(lambda c: c.data == 'calendar')
+async def show_admin_calendar_from_button(callback_query: CallbackQuery, state: FSMContext):
+    current_date = datetime.now()
+    year = current_date.year
+    month = current_date.month
+    current_day = current_date.day
+    await callback_query.message.edit_text("Выберите дату:", reply_markup=get_calendar_menu(year, month))
+    await Admins.ViewDay.set()
+
 
 # @dp.callback_query_handler(text="ch_price")
 # async def change_price_list(callback_query: CallbackQuery, state: FSMContext):

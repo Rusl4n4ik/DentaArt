@@ -51,6 +51,10 @@ class Appointment(Base):
     time = Column(DateTime, default=datetime.utcnow)
 
 
+def get_appointments_in_time_range(db: Session, start_time: datetime, end_time: datetime):
+    return db.query(Appointment).filter(Appointment.time >= start_time, Appointment.time <= end_time).all()
+
+
 def get_appointments_on_day(db: Session, year: int, month: int, day: int):
     return db.query(Appointment).filter(
         extract('year', Appointment.time) == year,

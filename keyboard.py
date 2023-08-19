@@ -1,3 +1,6 @@
+import calendar
+from datetime import datetime
+
 from aiogram import types
 from aiogram.types import ReplyKeyboardRemove, \
     ReplyKeyboardMarkup, KeyboardButton, \
@@ -83,6 +86,100 @@ russian_month_names = [
             'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
             'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
         ]
+
+
+def get_admin_calendar_menu(year, month, selected_day=None, selected_month=None):
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
+    current_day = current_date.day
+
+    max_days = calendar.monthrange(year, month)[1]
+
+    # Собственные названия месяцев на русском языке
+    month_names = [
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    ]
+
+    keyboard = InlineKeyboardMarkup(row_width=2)
+
+    next_month = (month + 1) % 12
+    row = []
+    if year == current_year and month != current_month:
+        row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{month:02d}'))
+    row.append(InlineKeyboardButton(
+        text=month_names[month - 1],  # Индексы начинаются с 0
+        callback_data=f'month:{year}-{month:02d}'
+    ))
+    if (year == current_year and next_month >= current_month and next_month != current_month + 2) or (
+            year > current_year):
+        row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
+    keyboard.row(*row)
+
+    day_buttons = []
+    day_row = []
+    for day in range(1, max_days + 1):
+        if (year == current_year and month == current_month and day < current_day) or (
+                year == current_year and month < current_month):
+            continue
+
+        appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+        available_hours = db.get_available_hours(appointments_on_day)
+
+        if available_hours:
+            button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
+            button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
+                {'action': 'admin_day', 'year': year, 'month': month, 'day': day}))
+            day_row.append(button)
+        else:
+            button_text = f"{day} ❌" if selected_day == day and selected_month == month else f"{day} ❌"
+            button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
+                {'action': 'admin_day', 'year': year, 'month': month, 'day': day}))
+            day_row.append(button)
+
+        if len(day_row) == 5:
+            day_buttons.append(day_row)
+            day_row = []
+
+    if day_row:
+        day_buttons.append(day_row)
+
+    for row in day_buttons:
+        keyboard.row(*row)
+
+    keyboard.row(InlineKeyboardButton("🔙Назад", callback_data='admin_back'))
+
+    return keyboard
+
+
+def get_admin_hour_menu(year, month, day, selected_hour=None):
+    start_hour = 8
+    end_hour = 18
+    keyboard = InlineKeyboardMarkup(row_width=3)
+
+    appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
+    available_hours = db.get_available_hours(appointments_on_day)
+
+    for hour in range(start_hour, end_hour + 1):
+        for minute in range(0, 60, 30):
+            if hour == end_hour and minute > 0:
+                break
+            formatted_time = f"{hour:02d}:{minute:02d}"
+            if formatted_time in available_hours:
+                button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
+                button = InlineKeyboardButton(text=button_text, callback_data=f'admin_hour:{formatted_time}')
+                keyboard.insert(button)
+            else:
+                button_text = f"{formatted_time} ❌" if formatted_time == selected_hour else formatted_time
+                button = InlineKeyboardButton(text=button_text, callback_data=f'admin_hour:{formatted_time}')
+                keyboard.insert(button)
+
+    back_button = InlineKeyboardButton("🔙Назад", callback_data='admin_hour_back')
+    keyboard.row(back_button)
+
+    return keyboard
+
 
 
 # current_prices = {

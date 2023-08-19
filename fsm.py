@@ -17,6 +17,11 @@ class Admins(StatesGroup):
     EditService = State()
     BroadcastTextAppointments = State()
     BroadcastTextAll = State()
+    CalendarM = State()
+    CalendarH = State()
+    ViewHour = State()
+    HOUR_CHOOSE = State()
+    ViewDay = State()
 
 
 class Update(StatesGroup):
