@@ -1,11 +1,11 @@
 import asyncio
 import calendar
 import json
-from datetime import datetime
-
+from datetime import datetime, timedelta
+import keyboard
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
-from keyboard import back_markup, russian_month_names
+from keyboard import back_markup, russian_month_names, start_m
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove, CallbackQuery, ParseMode
@@ -17,8 +17,6 @@ import aiogram.utils.markdown as fmt
 from fsm import Users, Update, Appointment
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-
-
 
 
 scheduler = AsyncIOScheduler()
@@ -131,11 +129,28 @@ async def user_info(message: types.Message, state: FSMContext):
 
 
 @dp.callback_query_handler(lambda c: c.data == 'back', state='*')
-async def go_back(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await state.finish()
-    await callback.message.answer("👋Добро пожаловать в телеграм-ботстоматологии <b>Denta Art</b>! Здесь Вы можете записаться на прием к стоматологу. Выберите интересующий вас пункт в меню ниже. "
-                             "❓ Если у вас возникли вопросы по работе с ботом, ознакомьтесь с инструкцией ниже или свяжитесь с нами по телефону <u>+998902706390</u>.", reply_markup=keyboard.start_m)
+async def go_back(callback: CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    print(current_state)
+    if current_state == 'Appointment:SET_HOUR_CHOOSE':
+        await callback.message.delete()
+        await state.reset_state()
+        await start_appointment(callback.message)
+    elif current_state == 'Appointment:SET_REASON':
+        await choose_time(callback, state)
+    elif current_state == 'Appointment:SET_REASON':
+        await choose_time(callback, state)
+    elif current_state == 'Appointment:DELETE_CONFIRM':
+        await show_appointments(callback, state)
+    elif current_state == 'Appointment:CANCEL_CONFIRM':
+        await show_appointments(callback, state)
+    else:
+        await callback.message.delete()
+        await state.finish()
+        await callback.message.answer(
+            "👋Добро пожаловать в телеграм-ботстоматологии <b>Denta Art</b>! Здесь Вы можете записаться на прием к стоматологу. Выберите интересующий вас пункт в меню ниже. "
+            "❓ Если у вас возникли вопросы по работе с ботом, ознакомьтесь с инструкцией ниже или свяжитесь с нами по телефону <u>+998902706390</u>.",
+            reply_markup=start_m)
 
 
 @dp.callback_query_handler(lambda c: c.data == 'ch_name')
@@ -303,16 +318,24 @@ async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
 
 @dp.callback_query_handler(lambda c: json.loads(c.data).get('action') == 'day', state=Appointment.SET_DAY)
 async def set_day(callback_query: CallbackQuery, state: FSMContext):
-    data = json.loads(callback_query.data)
-    selected_year = data.get('year')
-    selected_month = data.get('month')
-    selected_day = data.get('day')
-
-    await state.update_data(selected_year=selected_year, selected_month=selected_month, selected_day=selected_day)
+    state_data = await state.get_data()
+    print(state_data)
+    if not state_data.get('selected_year'):
+        await state.finish()
+        data = json.loads(callback_query.data)
+        selected_year = data.get('year')
+        selected_month = data.get('month')
+        selected_day = data.get('day')
+        await state.update_data(selected_year=selected_year, selected_month=selected_month, selected_day=selected_day)
+        reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
+    else:
+        selected_year = state_data.get('selected_year')
+        selected_month = state_data.get('selected_month')
+        selected_day = state_data.get('selected_day')
+        reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
     await Appointment.SET_HOUR.set()
 
     # В этом месте также добавьте кнопку "Выбрать время"
-    reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
     await callback_query.message.edit_reply_markup(reply_markup=reply_markup)
 
 
@@ -408,17 +431,26 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
         reason = data['reason']
         name = user_info['name']
         phnum = user_info['phnum']
-        appointment_date = appointment_time.strftime(f"%d {keyboard.russian_month_names[appointment_time.month - 1]} %Y года")
+        appointment_date = appointment_time.strftime(
+            f"%d {keyboard.russian_month_names[appointment_time.month - 1]} %Y года")
         appointment_time_str = appointment_time.strftime("%H:%M")
-
         db.create_appointment(user_id, callback_query.from_user.username, name, phnum, reason, appointment_time)
 
-        confirmation_message = (
-            f"✅ Ваша запись успешно подтверждена!\n"
-            f"Ждем вас <b>{appointment_date} в {appointment_time_str}</b>. Если у вас возникнут вопросы или изменения в планах, пожалуйста, свяжитесь с нами заранее. Спасибо за выбор стоматологии '<b>Denta Art</b>'! 🦷\n\n"
-            f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
-        )
-        await callback_query.message.edit_text(confirmation_message, reply_markup= back_markup, parse_mode="HTML")
+        current_state = await state.get_state()
+        if current_state == 'Appointment.SET_REASON':
+            confirmation_message = (
+                f"✅ Ваша запись успешно подтверждена!\n"
+                f"Ждем вас <b>{appointment_date} в {appointment_time_str}</b>. Если у вас возникнут вопросы или изменения в планах, пожалуйста, свяжитесь с нами заранее. Спасибо за выбор стоматологии '<b>Denta Art</b>'! 🦷\n\n"
+                f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
+            )
+            await callback_query.message.edit_text(confirmation_message, reply_markup=back_markup, parse_mode="HTML")
+        else:
+            confirmation_message = (
+                f"✅ Ваша запись успешно подтверждена!\n"
+                f"Ждем вас <b>{appointment_date} в {appointment_time_str}</b>. Если у вас возникнут вопросы или изменения в планах, пожалуйста, свяжитесь с нами заранее. Спасибо за выбор стоматологии '<b>Denta Art</b>'! 🦷\n\n"
+                f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
+            )
+            await callback_query.message.edit_text(confirmation_message, reply_markup=keyboard.back_admin, parse_mode="HTML")
         await state.finish()
 
         group_chat_id = -921482477
@@ -434,9 +466,42 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
         )
 
         await bot.send_message(chat_id=group_chat_id, text=confirmation_group, parse_mode="HTML")
+        time_until_notification_24h = appointment_time - timedelta(hours=24)
+        time_until_notification_1h = appointment_time - timedelta(hours=1)
+
+        # Создайте задачи для отправки уведомлений
+        asyncio.create_task(send_notification_24h(chat_id, time_until_notification_24h))
+        asyncio.create_task(send_notification_1h(chat_id, time_until_notification_1h))
 
 
-@dp.callback_query_handler(lambda c: c.data == 'my_app')
+async def send_notification_24h(chat_id, notification_time):
+    await asyncio.sleep((notification_time - datetime.now()).total_seconds())
+    await bot.send_message(chat_id, "У вас есть запись через 24 часа!")
+
+
+async def send_notification_1h(chat_id, notification_time):
+    await asyncio.sleep((notification_time - datetime.now()).total_seconds())
+    await bot.send_message(chat_id, "У вас есть запись через 1 час!")
+
+
+async def send_reminders():
+    while True:
+        current_time = datetime.now()
+        upcoming_appointments = db.session.query(Appointment).filter(Appointment.time > current_time).all()
+
+        for appointment in upcoming_appointments:
+            time_left = appointment.time - current_time
+
+            if time_left <= timedelta(hours=24):
+                await bot.send_message(appointment.chat_id, "У вас есть запись через 24 часа!")
+
+            if time_left <= timedelta(hours=1):
+                await bot.send_message(appointment.chat_id, "У вас есть запись через 1 час!")
+
+        await asyncio.sleep(300)
+
+
+@dp.callback_query_handler(lambda c: c.data == 'my_app', state="*")
 async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
     chat_id = callback_query.from_user.id
     appointments = db.get_appointments(db.session, chat_id)
@@ -453,7 +518,8 @@ async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
             button = InlineKeyboardButton(text=button_text, callback_data=f'app_info:{idx}')
             keyboard.add(button)
             message_text += f"<b>{idx}</b>. {appointment_date}, {appointment_time_str} - {appointment_reason}\n"
-
+        back = InlineKeyboardButton('🔙Назад', callback_data='back')
+        keyboard.add(back)
         message_text += '\n\n\n'
         message_text += "<b><i>Для просмотра информации о записи или отмены, выберите нужную запись</i></b>:"
         await callback_query.message.edit_text(message_text, reply_markup=keyboard)
@@ -461,7 +527,7 @@ async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
         await callback_query.message.edit_text("У вас нет записей.", reply_markup=back_markup)
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('app_info:'))
+@dp.callback_query_handler(lambda c: c.data.startswith('app_info:'), state="*")
 async def show_appointment_info(callback_query: CallbackQuery, state: FSMContext):
     app_index = int(callback_query.data.split(':')[1])
     chat_id = callback_query.from_user.id
@@ -603,4 +669,13 @@ scheduler.add_job(delete_expired_appointments, trigger=CronTrigger(hour=0, minut
 if __name__ == '__main__':
     from aiogram import executor
     from admin import *
+
+    # loop = asyncio.get_event_loop()
+    # loop.create_task(send_reminders())
+    # try:
+    #     loop.run_forever()
+    # except KeyboardInterrupt:
+    #     pass
+    # finally:
+    #     loop.close()
     executor.start_polling(dp, skip_updates=True)

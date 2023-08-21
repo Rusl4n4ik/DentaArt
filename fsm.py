@@ -22,7 +22,11 @@ class Admins(StatesGroup):
     ViewHour = State()
     HOUR_CHOOSE = State()
     ViewDay = State()
-
+    SET_REASON = State()
+    SET_DAY = State()
+    SET_HOUR_CHOOSE = State()
+    SET_HOUR = State()
+    SET_MONTH = State()
 
 class Update(StatesGroup):
     Name = State()
@@ -32,16 +36,28 @@ class Update(StatesGroup):
 class Appointment(StatesGroup):
     CURRENT_TIME = State()
     SET_REASON = State()
+    SET_REASON_CONFIRM = State()
     SET_DAY = State()
     SET_HOUR_CHOOSE = State()
     SET_HOUR = State()
     SET_MONTH = State()
     CURRENT_MONTH = State()
     CONFIRM = State()
+    DAY = State()
     SET_TIME = State()
     SET_DATE = State()
     DELETE_CONFIRM = State()
     CANCEL_CONFIRM = State()
     DELETE_REASON = State()
+    ENTER_PHONE_OFF = State()
+    ENTER_NAME_OFF = State()
 
 
+class Offline(StatesGroup):
+    Name = State()
+    Phnum = State()
+    SET_REASON = State()
+    SET_DAY = State()
+    SET_HOUR_CHOOSE = State()
+    SET_HOUR = State()
+    SET_MONTH = State()

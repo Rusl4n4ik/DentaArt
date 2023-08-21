@@ -140,7 +140,7 @@ def get_all_admins():
 
 
 def is_admin(chat_id):
-    admins = [1373285788]
+    admins = [1373285788, 5686506835]
     return chat_id in admins
 ##########################################################
 
@@ -252,6 +252,13 @@ def update_service_name(index, new_name):
 def create_appointment(chat_id, username, name, number, reason, time):
     with Session() as session:
         appointment = Appointment(chat_id=chat_id, username=username, name=name, number=number, reason=reason, time=time)
+        session.add(appointment)
+        session.commit()
+
+
+def create_appointment_offline(name, number, reason, time):
+    with Session() as session:
+        appointment = Appointment(name=name, number=number, reason=reason, time=time)
         session.add(appointment)
         session.commit()
 
