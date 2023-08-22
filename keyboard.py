@@ -162,6 +162,7 @@ def get_admin_calendar_menu(year, month, selected_day=None, selected_month=None)
     return keyboard
 #####################################################################
 
+
 def get_admin_hour_menu(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18

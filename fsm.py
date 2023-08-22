@@ -13,6 +13,7 @@ class Admins(StatesGroup):
     AddServicePrice = State()
     AddServiceName = State()
     EditPriceAmount = State()
+    EditServiceName = State()
     EditPriceList = State()
     EditService = State()
     BroadcastTextAppointments = State()
@@ -28,12 +29,13 @@ class Admins(StatesGroup):
     SET_HOUR = State()
     SET_MONTH = State()
 
+
 class Update(StatesGroup):
     Name = State()
     Phnum = State()
 
 
-class Appointment(StatesGroup):
+class Appointments(StatesGroup):
     CURRENT_TIME = State()
     SET_REASON = State()
     SET_REASON_CONFIRM = State()

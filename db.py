@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, func, extract
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, func, extract, Enum
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -39,6 +39,11 @@ class Price(Base):
     price = Column(String)
 
 
+class AppointmentStatus(Enum):
+    BOOKED = "Booked"
+    CANCELED = "Canceled"
+
+
 class Appointment(Base):
     __tablename__ = "appointment"
 
@@ -49,6 +54,28 @@ class Appointment(Base):
     number = Column(String(50), nullable=False)
     reason = Column(String(100))
     time = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="Booked")
+
+
+class Offline(Base):
+    __tablename__ = "offline"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), nullable=False)
+    number = Column(String(50), nullable=False)
+    reason = Column(String(100))
+    time = Column(DateTime, default=datetime.utcnow)
+
+
+def get_user_info_offline(session: Session):
+    offline_record = session.query(Offline).first()
+    if offline_record:
+        user_info = {
+            'name': offline_record.name,
+            'phnum': offline_record.number
+        }
+        return user_info
+    return None
 
 
 def get_appointments_in_time_range(db: Session, start_time: datetime, end_time: datetime):
@@ -140,7 +167,7 @@ def get_all_admins():
 
 
 def is_admin(chat_id):
-    admins = [1373285788, 5686506835]
+    admins = [1373285788]
     return chat_id in admins
 ##########################################################
 
@@ -190,33 +217,25 @@ def check_existing(id):
 ########################################################################################
 
 
-def get_all_prices():
-    session = Session()
-    prices = session.query(Price).all()
-    session.close()
-    return prices
+def get_all_prices(session: Session):
+    return session.query(Price).all()
 
 
-def add_price_and_service(service: str, price: str):
-    session = Session()
+def add_price_and_service(session: Session, service: str, price: str):
     new_price = Price(service=service, price=price)
     session.add(new_price)
     session.commit()
-    session.close()
 
 
-def get_price_by_index(index):
-    session = Session()
-    price = session.query(Price).filter_by(id=index + 1).first()
-    session.close()
-    return price
+def get_price_by_index(session: Session, index):
+    return session.query(Price).filter_by(id=index + 1).first()
 
 
-def get_price(session, service):
+def get_price(session: Session, service):
     return session.query(Price).filter_by(service=service).first()
 
 
-def update_service_price(session, service, new_price):
+def update_service_price(session: Session, service, new_price):
     price = get_price(session, service)
     if price:
         price.price = new_price
@@ -228,8 +247,7 @@ def update_service_price(session, service, new_price):
         return False
 
 
-def update_service_name(index, new_name):
-    session = Session()
+def update_service_name(session: Session, index, new_name):
     try:
         price = session.query(Price).filter_by(id=index + 1).first()
         if price:
@@ -238,8 +256,6 @@ def update_service_name(index, new_name):
     except Exception as e:
         session.rollback()
         raise e
-    finally:
-        session.close()
 
 
 # def get_users_with_appointments(session: Session):
@@ -257,28 +273,37 @@ def create_appointment(chat_id, username, name, number, reason, time):
 
 
 def create_appointment_offline(name, number, reason, time):
-    with Session() as session:
-        appointment = Appointment(name=name, number=number, reason=reason, time=time)
+    session = Session()  # Создаем экземпляр сессии
+    try:
+        appointment = Offline(name=name, number=number, reason=reason, time=time)
         session.add(appointment)
         session.commit()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Обработка ошибки, если необходимо
+    finally:
+        session.close()
 
 
 def get_appointments(session: Session, chat_id: int):
-    return session.query(Appointment).filter_by(chat_id=chat_id).all()
+    return session.query(Appointment).filter_by(chat_id=chat_id, status="Booked").all()
 
 
 def get_all_appointments(session: Session):
-    return session.query(Appointment).all()
+    return session.query(Appointment).filter(Appointment.status == "Booked").all()
+
+
+def get_all_offline_appointments(session: Session):
+    return session.query(Offline).all()
 
 
 def delete_appointment(session: Session, appointment_id: int):
     appointment = session.query(Appointment).get(appointment_id)
     if appointment:
-        session.delete(appointment)
+        appointment.status = "Canceled"
         session.commit()
         return True
     return False
-
 
 
 ########################################################################################
