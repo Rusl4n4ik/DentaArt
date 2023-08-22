@@ -57,6 +57,19 @@ class Appointment(Base):
     status = Column(String, default="Booked")
 
 
+class Appointment_Cancel(Base):
+    __tablename__ = "canceled"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(Integer)
+    username = Column(String)
+    name = Column(String(50), nullable=False)
+    number = Column(String(50), nullable=False)
+    reason = Column(String(100))
+    time = Column(DateTime, default=datetime.utcnow)
+
+
+
 class Offline(Base):
     __tablename__ = "offline"
 
@@ -285,8 +298,49 @@ def create_appointment_offline(name, number, reason, time):
         session.close()
 
 
-def get_appointments(session: Session, chat_id: int):
+def get_appointments_view(session: Session, chat_id: int):
     return session.query(Appointment).filter_by(chat_id=chat_id, status="Booked").all()
+
+
+def get_appointments(session: Session, chat_id: int, view_mode: str):
+    if view_mode == "booked":
+        return session.query(Appointment).filter_by(chat_id=chat_id, status="Booked").all()
+    elif view_mode == "canceled":
+        return session.query(Appointment).filter_by(chat_id=chat_id, status="Canceled").all()
+    else:
+        raise ValueError("Invalid view mode")
+
+
+def get_appointment_by_datetime(session, year, month, day, time):
+    appointment = session.query(Appointment).filter_by(year=year, month=month, day=day, time=time).first()
+    return appointment
+
+
+def is_time_booked(session: Session, year: int, month: int, day: int, time: str) -> bool:
+    return session.query(Appointment).filter_by(year=year, month=month, day=day, time=time).count() > 0
+
+
+def get_booking_info(session: Session, year: int, month: int, day: int, time: str) -> dict:
+    appointment = session.query(Appointment).filter_by(year=year, month=month, day=day, time=time).first()
+    if appointment:
+        return {
+            'user_name': appointment.user_name,
+            'user_phone': appointment.user_phone
+        }
+    return {}
+
+
+def book_time(session: Session, year: int, month: int, day: int, time: str, user_name: str, user_phone: str):
+    appointment = Appointment(
+        year=year,
+        month=month,
+        day=day,
+        time=time,
+        user_name=user_name,
+        user_phone=user_phone
+    )
+    session.add(appointment)
+    session.commit()
 
 
 def get_all_appointments(session: Session):

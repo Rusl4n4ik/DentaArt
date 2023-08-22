@@ -97,7 +97,7 @@ async def admin_show_users(callback: types.CallbackQuery):
 
         user_list = ""
         for idx, user in enumerate(users[page * per_page:(page + 1) * per_page], start=page * per_page + 1):
-            appointments = db.get_appointments(db.session, user['chat_id'])
+            appointments = db.get_appointments_view(db.session, user['chat_id'])
             appointments_info = ', '.join([appointment.time.strftime('%d %b %Y %H:%M') for appointment in appointments])
             user_info = f"<b>{idx}</b>. {user['name']}:\n{user['phnum']}\n"
             if appointments_info:
@@ -118,6 +118,7 @@ async def admin_show_users(callback: types.CallbackQuery):
                 InlineKeyboardButton("➡️", callback_data=f"admin_show_users_page:{page + 1}"))
 
         reply_markup = InlineKeyboardMarkup().add(*navigation_buttons)
+        reply_markup.add(keyboard.back_ad)
 
         await callback.answer()
         await callback.message.edit_text(f"Список пользователей:\n{user_list}", reply_markup=reply_markup, parse_mode="HTML")

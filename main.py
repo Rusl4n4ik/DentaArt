@@ -509,37 +509,88 @@ async def send_notification_1h(chat_id, notification_time, reason, data):
     await bot.send_message(chat_id, notification_text)
 
 
+user_view_modes = {}
+
+
 @dp.callback_query_handler(lambda c: c.data == 'my_app', state="*")
 async def show_appointments(callback_query: CallbackQuery, state: FSMContext):
     chat_id = callback_query.from_user.id
-    appointments = db.get_appointments(db.session, chat_id)
+
+    if chat_id not in user_view_modes:
+        user_view_modes[chat_id] = "booked"  # Изначально установлено на "booked"
+
+    current_view_mode = user_view_modes[chat_id]
+    appointments = db.get_appointments(db.session, chat_id, current_view_mode)
+
 
     if appointments:
         message_text = "📅 <b>Ваши записи</b>:\n"
         keyboard = InlineKeyboardMarkup()
 
         for idx, appointment in enumerate(appointments, start=1):
-            appointment_date = appointment.time.strftime(f"%d {russian_month_names[appointment.time.month - 1]} %Y года").lstrip('0')
+            appointment_date = appointment.time.strftime(
+                f"%d {russian_month_names[appointment.time.month - 1]} %Y года").lstrip('0')
             appointment_time_str = appointment.time.strftime("%H:%M")
             appointment_reason = appointment.reason
             button_text = f"{appointment_date}, {appointment_time_str}"
             button = InlineKeyboardButton(text=button_text, callback_data=f'app_info:{idx}')
             keyboard.add(button)
             message_text += f"<b>{idx}</b>. {appointment_date}, {appointment_time_str} - {appointment_reason}\n"
+
+        # Добавляем кнопки для переключения режимов
+        if current_view_mode == "booked":
+            toggle_mode_button_text = "Показать отмененные записи"
+            next_view_mode = "canceled"
+        else:
+            toggle_mode_button_text = "Показать текущие записи"
+            next_view_mode = "booked"
+
+        toggle_mode_button = InlineKeyboardButton(
+            text=toggle_mode_button_text,
+            callback_data=f'toggle_view_mode:{next_view_mode}'
+        )
+        keyboard.add(toggle_mode_button)
+
         back = InlineKeyboardButton('🔙Назад', callback_data='back')
         keyboard.add(back)
         message_text += '\n\n\n'
         message_text += "<b><i>Для просмотра информации о записи или отмены, выберите нужную запись</i></b>:"
         await callback_query.message.edit_text(message_text, reply_markup=keyboard)
     else:
-        await callback_query.message.edit_text("У вас нет записей.", reply_markup=back_markup)
+        # Добавляем кнопки для переключения режимов
+        if current_view_mode == "booked":
+            toggle_mode_button_text = "Показать отмененные записи"
+            next_view_mode = "canceled"
+        else:
+            toggle_mode_button_text = "Показать текущие записи"
+            next_view_mode = "booked"
+
+        toggle_mode_button = InlineKeyboardButton(
+            text=toggle_mode_button_text,
+            callback_data=f'toggle_view_mode:{next_view_mode}'
+        )
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(toggle_mode_button)
+        await callback_query.message.edit_text("У вас нет записей.", reply_markup=keyboard)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('toggle_view_mode:'))
+async def toggle_view_mode(callback_query: CallbackQuery):
+    chat_id = callback_query.from_user.id
+
+    if chat_id in user_view_modes:
+        current_view_mode = user_view_modes[chat_id]
+        next_view_mode = callback_query.data.split(':')[1]
+        user_view_modes[chat_id] = next_view_mode
+        await show_appointments(callback_query, None)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('app_info:'), state="*")
 async def show_appointment_info(callback_query: CallbackQuery, state: FSMContext):
     app_index = int(callback_query.data.split(':')[1])
     chat_id = callback_query.from_user.id
-    appointments = db.get_appointments(db.session, chat_id)
+    current_view_mode = user_view_modes[chat_id]
+    appointments = db.get_appointments(db.session, chat_id, current_view_mode)
 
     if 1 <= app_index <= len(appointments):
         selected_appointment = appointments[app_index - 1]
@@ -552,27 +603,35 @@ async def show_appointment_info(callback_query: CallbackQuery, state: FSMContext
             f"<b>Дата записи</b>: {appointment_date}\n"
             f"<b>Время записи</b>: {appointment_time_str}\n"
             f"<b>Симптомы/цель визита</b>: {appointment_reason}\n\n\n"
-            f"<b>Для отмены, используйте кнопку:</b>\n"
-            f"❌ Отменить запись"
         )
-        await callback_query.message.edit_text(appointment_info, reply_markup=keyboard.cancel_m, parse_mode='HTML')
-        await state.update_data(
-            appointment_id=selected_appointment.id,
-            selected_day=selected_appointment.time.day,
-            selected_month=selected_appointment.time.month,
-            selected_year=selected_appointment.time.year,
-            selected_hour=selected_appointment.time.hour,
-            selected_minute=selected_appointment.time.minute,
-            appointment_reason=appointment_reason  # Сохраняем причину записи в данных состояния
-        )
-        await Appointments.CANCEL_CONFIRM.set()
+
+        if current_view_mode == "booked":
+            # Добавляем кнопку для отмены записи, если это текущая запись
+            appointment_info += (
+                f"<b>Для отмены, используйте кнопку:</b>\n"
+                f"❌ Отменить запись"
+            )
+            await callback_query.message.edit_text(appointment_info, reply_markup=keyboard.cancel_m, parse_mode='HTML')
+            await state.update_data(
+                appointment_id=selected_appointment.id,
+                selected_day=selected_appointment.time.day,
+                selected_month=selected_appointment.time.month,
+                selected_year=selected_appointment.time.year,
+                selected_hour=selected_appointment.time.hour,
+                selected_minute=selected_appointment.time.minute,
+                appointment_reason=appointment_reason  # Сохраняем причину записи в данных состояния
+            )
+            await Appointments.CANCEL_CONFIRM.set()
+        else:
+            # В режиме "canceled" пользователь не может удалять повторно
+            await callback_query.message.edit_text(appointment_info, reply_markup=back_markup, parse_mode='HTML')
+
     else:
         await callback_query.answer("Неверный номер записи.")
 
 
 @dp.callback_query_handler(lambda c: c.data == 'cancel', state=Appointments.CANCEL_CONFIRM)
-async def cancel_appointment_confirm(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.answer()
+async def delete_appointment_confirm(callback_query: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     appointment_id = data.get('appointment_id')
 
@@ -580,12 +639,15 @@ async def cancel_appointment_confirm(callback_query: CallbackQuery, state: FSMCo
         await callback_query.message.edit_text(
             "Вы выбрали запись на "
             f"{data['selected_day']} {russian_month_names[data['selected_month'] - 1]} {data['selected_year']} года "
-            f"в {data['selected_hour']}:{data['selected_minute']}. Вы действительно хотите отменить эту запись?",
-            reply_markup=keyboard.del_confirm
+            f"в {data['selected_hour']}:{data['selected_minute']}. Вы действительно хотите отменить эту запись?\n"
         )
-        await Appointments.DELETE_CONFIRM.set()
+        await callback_query.message.edit_text('📝 <b>Пожалуйста, введите причину отмены записи</b>:\n'
+                                               'Это поможет нам улучшить качество нашего сервиса.',
+                                               reply_markup=keyboard.back_markup)
+        await Appointments.DELETE_REASON.set()
     else:
-        await callback_query.answer("Произошла ошибка. Пожалуйста, попробуйте снова.")
+        # В режиме "canceled" не даем возможность удалять повторно
+        await callback_query.message.edit_text('Вы не можете удалять повторно отмененные записи.')
 
 
 @dp.callback_query_handler(lambda c: c.data == 'del_confirm', state=Appointments.DELETE_CONFIRM)
