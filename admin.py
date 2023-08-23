@@ -20,7 +20,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from fsm import Users, Update
 
 
-@dp.message_handler(commands=['admin'])
+@dp.message_handler(commands=['admin'], state='*')
 async def admin_panel(message: types.Message):
     chat_id = message.chat.id
     if db.is_admin(chat_id):
@@ -52,7 +52,7 @@ async def go_back(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
 
 
-@dp.message_handler(commands=['add_service'])
+@dp.message_handler(commands=['add_service'], state='*')
 async def add_service_command(message: types.Message):
     if db.is_admin(message.chat.id):
         await message.answer("Введите название новой услуги:")
@@ -173,7 +173,7 @@ def get_user_appointments_info(user):
     return None
 
 
-@dp.callback_query_handler(lambda c: c.data == 'offline_appointment')
+@dp.callback_query_handler(lambda c: c.data == 'offline_appointment', state='*')
 async def offline_appointment(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.answer("📝 Введите ФИО в формате 'Фамилия Имя Отчество'", reply_markup=types.ReplyKeyboardRemove())
@@ -185,7 +185,8 @@ async def set_name_offline(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         chat_id = message.chat.id
         new_name = message.text
-        if re.match(r'^[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+$', new_name):
+
+        if re.match(r'^[А-ЯЁA-Za-z]+\s[А-ЯЁA-Za-z]+\s[А-ЯЁA-Za-z]+$', new_name) or re.match(r'^[A-Za-z]+\s[A-Za-z]+\s[A-Za-z]+$', new_name):
             data['new_name'] = new_name
             await message.answer("Отлично! Теперь номер телефона в формате '+998XXXXXXXXX'.", reply_markup=types.ReplyKeyboardRemove())
             await Offline.Phnum.set()
@@ -513,7 +514,7 @@ async def process_broadcast_appointments(message: types.Message, state: FSMConte
         await message.answer("Нет пользователей с записями для рассылки.", reply_markup=keyboard.back_admin)
 
 
-@dp.callback_query_handler(text="price_list")
+@dp.callback_query_handler(text="price_list", state="*")
 async def show_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
 
@@ -630,7 +631,7 @@ async def save_new_service_name(message: types.Message, state: FSMContext):
     await state.finish()
 
 
-@dp.callback_query_handler(text='view_app')
+@dp.callback_query_handler(text='view_app', state='*')
 async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
 
@@ -784,7 +785,7 @@ async def view_app_page_update(callback_query: CallbackQuery, page_number: int):
         await callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode='HTML')
 
 
-@dp.callback_query_handler(lambda c: c.data == 'calendar')
+@dp.callback_query_handler(lambda c: c.data == 'calendar', state="*")
 async def show_admin_calendar_from_button(callback_query: CallbackQuery):
     current_date = datetime.now()
     year = current_date.year

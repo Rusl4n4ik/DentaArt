@@ -59,7 +59,7 @@ async def phnum(message: types.Message, state: FSMContext):
 
     if len(lastname_name_surname) == 3:
         lastname, name, surname = lastname_name_surname
-        if re.match(r'^[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+$', name_input):
+        if re.match(r'^[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+$', name_input) or re.match(r'^[A-Za-z]+\s[A-Za-z]+\s[A-Za-z]+$', name_input):
             lastname = lastname.capitalize()
             name = name.capitalize()
             surname = surname.capitalize()
@@ -121,7 +121,7 @@ async def user_info(message: types.Message, state: FSMContext):
         user_info = db.get_user_info(chat_id)
         name = user_info['name']
         num = user_info['phnum']
-        loading_msg = await message.answer('Загрузка...', reply_markup=types.ReplyKeyboardRemove())
+        loading_msg = await message.answer('Загрузка информации...', reply_markup=types.ReplyKeyboardRemove())
         await asyncio.sleep(1)
         await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
         await message.answer(f'<b>Ваше ФИО:</b> {name}\n<b>Ваш номер телефона:</b> {num}\n'
@@ -155,6 +155,7 @@ async def go_back(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == 'ch_name')
 async def change_name(callback: types.CallbackQuery):
     await callback.answer()
+    await callback.message.delete()
     await callback.message.answer("📝 Введите ваше новое ФИО в формате 'Фамилия Имя Отчество'", reply_markup=types.ReplyKeyboardRemove())
     await Update.Name.set()
 
@@ -162,6 +163,7 @@ async def change_name(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == 'ch_number')
 async def change_number(callback: types.CallbackQuery):
     await callback.answer()
+    await callback.message.delete()
     await callback.message.answer("Введите ваш новый номер в формате '+998XXXXXXXXX'.", reply_markup=types.ReplyKeyboardRemove())
     await Update.Phnum.set()
 
@@ -171,7 +173,8 @@ async def set_name(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         chat_id = message.chat.id
         new_name = message.text
-        if re.match(r'^[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+$', new_name):
+
+        if re.match(r'^[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+\s[А-ЯЁа-яё]+$', new_name) or re.match(r'^[A-Za-z]+\s[A-Za-z]+\s[A-Za-z]+$', new_name):
             old_data = await state.get_data()
             db.update_user(chat_id, name=new_name, phnum=old_data.get('phnum'))
             await state.finish()
