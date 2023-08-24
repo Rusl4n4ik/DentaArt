@@ -22,6 +22,8 @@ class Users(Base):
     username = Column(String(50), nullable=True)
     name = Column(String(50), nullable=False)
     phnum = Column(String(50), nullable=False)
+    language = Column(String(10), nullable=False)  # Add this column for user's language preference
+
 
 
 class Admins(Base):
@@ -101,6 +103,13 @@ def get_appointments_on_day(db: Session, year: int, month: int, day: int):
         extract('month', Appointment.time) == month,
         extract('day', Appointment.time) == day
     ).all()
+
+
+def get_user_language(db: Session, user_id: int):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if user:
+        return user.language
+    return None
 
 
 def get_available_hours(appointments_on_day):
@@ -185,15 +194,16 @@ def is_admin(chat_id):
 ##########################################################
 
 
-def add_user(id, first_name, username, name, phnum):
+def add_user(id, first_name, username, name, phnum, language='ru'):
     session = Session()
     exist = check_existing(id)
     if not exist:
         user = Users(chat_id=id,
-                       first_name=first_name,
-                       username=username,
-                       name=name,
-                       phnum=phnum)
+                     first_name=first_name,
+                     username=username,
+                     name=name,
+                     phnum=phnum,
+                     language=language)  # Set the language for the user
         session.add(user)
         session.commit()
     session.close()
