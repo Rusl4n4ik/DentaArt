@@ -517,7 +517,6 @@ async def process_broadcast_appointments(message: types.Message, state: FSMConte
 @dp.callback_query_handler(text="price_list", state="*")
 async def show_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
-
     prices = db.get_all_prices(db.session)
     price_list_text = '💵 Прайс-лист стоматологии "Denta Art":\n'
     for index, price in enumerate(prices, start=1):
@@ -525,34 +524,28 @@ async def show_price_list(callback_query: CallbackQuery):
     await callback_query.message.answer(price_list_text, reply_markup=keyboard.price_list)
 
 
-@dp.callback_query_handler(text="ch_price")
+@dp.callback_query_handler(text="ch_price", state="*")
 async def edit_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
-
     prices = db.get_all_prices(db.session)
     markup = keyboard.create_price_edit_keyboard(prices)
-
     await callback_query.message.answer("Выберите услугу, для которой вы хотите изменить название или прайс:",
                                         reply_markup=markup)
 
 
-@dp.callback_query_handler(keyboard.price_edit_callback.filter())
+@dp.callback_query_handler(keyboard.price_edit_callback.filter(),state="*")
 async def edit_selected_service(callback_query: CallbackQuery, callback_data: dict):
     await callback_query.answer()
-
     service_index = int(callback_data["service_index"])
-    selected_service = db.get_price_by_index(db.session, service_index)  # Исправлено здесь
-
+    selected_service = db.get_price_by_index(db.session, service_index)
     if selected_service:
         buttons = [
             InlineKeyboardButton('Изменить название', callback_data=f"edit_name:{service_index}"),
             InlineKeyboardButton('Изменить прайс', callback_data=f"ed_price:{service_index}"),
             InlineKeyboardButton('🔙 Назад', callback_data='ch_price')
         ]
-
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(*buttons)
-
         await callback_query.message.answer(f"Выберите действие для услуги '{selected_service.service}':",
                                             reply_markup=markup)
     else:
@@ -562,13 +555,10 @@ async def edit_selected_service(callback_query: CallbackQuery, callback_data: di
 @dp.callback_query_handler(lambda c: c.data.startswith("ed_price:"), state="*")
 async def edit_service_price(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
-
     service_index = int(callback_query.data.split(":")[1])
     await callback_query.message.answer(f"Введите новый прайс для услуги '{service_index + 1}':")
-
     async with state.proxy() as data:
         data["editing_service"] = service_index
-
     await Admins.EditPriceAmount.set()
 
 
@@ -576,9 +566,7 @@ async def edit_service_price(callback_query: CallbackQuery, state: FSMContext):
 async def save_new_service_price(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         service_index = data["editing_service"]
-
     new_price = message.text.strip()
-
     if new_price:
         service = db.get_price_by_index(db.session,service_index)
         if service:
@@ -590,20 +578,16 @@ async def save_new_service_price(message: types.Message, state: FSMContext):
             await message.answer("Услуга не найдена.")
     else:
         await message.answer("Изменения не сохранены.")
-
     await state.finish()
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("edit_name:"), state="*")
 async def edit_service_name(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
-
     service_index = int(callback_query.data.split(":")[1])
     await callback_query.message.answer(f"Введите новое название для услуги '{service_index + 1}':")
-
     async with state.proxy() as data:
         data["editing_service"] = service_index
-
     await Admins.EditServiceName.set()
 
 
@@ -611,9 +595,7 @@ async def edit_service_name(callback_query: CallbackQuery, state: FSMContext):
 async def save_new_service_name(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         service_index = data["editing_service"]
-
     new_name = message.text.strip()
-
     if new_name:
         session = db.Session()
         try:
@@ -627,7 +609,6 @@ async def save_new_service_name(message: types.Message, state: FSMContext):
             session.close()
     else:
         await message.answer("Изменения не сохранены.")
-
     await state.finish()
 
 
@@ -695,12 +676,12 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
         await callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode='HTML')
 
 
-@dp.callback_query_handler(text='view_app_next_page')
+@dp.callback_query_handler(text='view_app_next_page', state='*')
 async def view_app_next_page(callback_query: CallbackQuery):
     await view_app_page_navigation(callback_query, forward=True)
 
 
-@dp.callback_query_handler(text='view_app_prev_page')
+@dp.callback_query_handler(text='view_app_prev_page', state='*')
 async def view_app_prev_page(callback_query: CallbackQuery):
     await view_app_page_navigation(callback_query, forward=False)
 
@@ -718,7 +699,7 @@ async def view_app_page_navigation(callback_query: CallbackQuery, forward: bool)
     await view_app_page_update(callback_query, page_number)
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('view_app_page:'))
+@dp.callback_query_handler(lambda c: c.data.startswith('view_app_page:'), state='*')
 async def view_app_page(callback_query: CallbackQuery):
     await callback_query.answer()
 
@@ -865,10 +846,8 @@ def get_hour_menu(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
-
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
     available_hours = db.get_available_hours(appointments_on_day)
-
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:

@@ -347,32 +347,6 @@ def get_appointment_by_datetime(session, year, month, day, time):
     return appointment
 
 
-def is_time_booked(session: Session, year: int, month: int, day: int, time: str) -> bool:
-    return session.query(Appointment).filter_by(year=year, month=month, day=day, time=time).count() > 0
-
-
-def get_booking_info(session: Session, year: int, month: int, day: int, time: str) -> dict:
-    appointment = session.query(Appointment).filter_by(time=time).first()
-    if appointment:
-        return {
-            'user_name': appointment.user_name,
-            'user_phone': appointment.user_phone
-        }
-    return {}
-
-
-def book_time(session: Session, year: int, month: int, day: int, time: str, user_name: str, user_phone: str):
-    appointment = Appointment(
-        year=year,
-        month=month,
-        day=day,
-        time=time,
-        user_name=user_name,
-        user_phone=user_phone
-    )
-    session.add(appointment)
-    session.commit()
-
 
 def get_all_appointments(session: Session):
     return session.query(Appointment).filter(Appointment.status == "Booked").all()
