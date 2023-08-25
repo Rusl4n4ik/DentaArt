@@ -22,7 +22,7 @@ class Users(Base):
     username = Column(String(50), nullable=True)
     name = Column(String(50), nullable=False)
     phnum = Column(String(50), nullable=False)
-    language = Column(String(10), nullable=False)  # Add this column for user's language preference
+    language = Column(String(10))  # Add this column for user's language preference
 
 
 
@@ -105,11 +105,18 @@ def get_appointments_on_day(db: Session, year: int, month: int, day: int):
     ).all()
 
 
-def get_user_language(db: Session, user_id: int):
-    user = db.query(Users).filter(Users.id == user_id).first()
+def get_user_language(session, id: int):
+    user = session.query(Users).filter(Users.chat_id == id).first()
     if user:
         return user.language
-    return None
+
+
+def update_user_language(session, chat_id: int, new_language: str):
+    user = session.query(Users).filter(Users.chat_id == chat_id).first()
+    if user:
+        user.language = new_language
+        session.commit()
+
 
 
 def get_available_hours(appointments_on_day):
@@ -244,10 +251,12 @@ def get_all_prices(session: Session):
     return session.query(Price).all()
 
 
-def add_price_and_service(session: Session, service: str, price: str):
+def add_price_and_service(service: str, price: str):
+    session = Session()
     new_price = Price(service=service, price=price)
     session.add(new_price)
     session.commit()
+    session.close()
 
 
 def get_price_by_index(session: Session, index):

@@ -11,6 +11,10 @@ languages = types.InlineKeyboardMarkup(row_width=1)
 languages.add(types.InlineKeyboardButton("🇷🇺 Русский", callback_data='ru'))
 languages.add(types.InlineKeyboardButton("🇺🇿 O'zbek", callback_data='uz'))
 
+ch_language = types.InlineKeyboardMarkup(row_width=1)
+ch_language.add(types.InlineKeyboardButton("🇷🇺 Русский", callback_data='rus'))
+ch_language.add(types.InlineKeyboardButton("🇺🇿 O'zbek", callback_data='uzb'))
+
 
 def get_start_keyboard(lang_code):
     start_m = ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
@@ -108,4 +112,8 @@ russian_month_names = [
             'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
         ]
 
+uzb_month_names = [
+             "yanvar", "fevral", "mart", "aprel", "may", "iyun",
+             "Iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr"
+         ]
 #####################################################################

@@ -133,7 +133,7 @@ async def admin_show_users_page(callback: types.CallbackQuery):
     total_pages = (len(users) + per_page - 1) // per_page
     user_list = ""
     for idx, user in enumerate(users[page * per_page:(page + 1) * per_page], start=page * per_page + 1):
-        appointments = db.get_appointments(db.session, user['chat_id'])
+        appointments = db.get_appointments(db.session, user['chat_id'], 'booked')
         appointments_info = ', '.join([appointment.time.strftime('%d %b %Y %H:%M') for appointment in appointments])
         user_info = f"<b>{idx}</b>. {user['name']}:\n{user['phnum']}\n"
         if appointments_info:
@@ -582,7 +582,7 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
     online_appointments = db.get_all_appointments(db.session)
     offline_appointments = db.get_all_offline_appointments(db.session)
     all_appointments = online_appointments + offline_appointments
-    page_size = 5
+    page_size = 1
     page_number = 1
     start_idx = (page_number - 1) * page_size
     end_idx = min(start_idx + page_size, len(all_appointments))
@@ -662,7 +662,7 @@ async def view_app_page_update(callback_query: CallbackQuery, page_number: int):
     online_appointments = db.get_all_appointments(db.session)
     offline_appointments = db.get_all_offline_appointments(db.session)
     all_appointments = online_appointments + offline_appointments
-    page_size = 5
+    page_size = 1
     start_idx = (page_number - 1) * page_size
     end_idx = min(start_idx + page_size, len(all_appointments))
     if all_appointments:

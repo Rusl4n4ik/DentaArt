@@ -53,9 +53,9 @@ confirmation-message =
      <b>Semptomlar tavsifi/tashrif maqsadi</b>: {reason}
 
      <i>Iltimos, taqdim etilgan ma'lumotlarni tekshiring. Agar hamma narsa to'g'ri bo'lsa, "✅ Kirishni tasdiqlash" tugmasini bosing. Agar siz o'zgartirish kiritmoqchi bo'lsangiz, orqaga qayting</i>
-confirmation_message2 =
-    ✅ Sizning arizangiz muvaffaqiyatli tasdiqlandi!
-    Sizni <b>{appointment_date} da, {appointment_time_str}</b> da kutamiz. Agar sizda biron bir savol yoki rejalardagi o'zgarishlar bo'lsa, biz bilan oldindan bog'laning. '<b>Denta Art</b>' stomatologiyasini tanlaganingiz uchun tashakkur! 🦷
+confirmation-message2 =
+     ✅ Sizning arizangiz muvaffaqiyatli tasdiqlandi!
+     Sizni <b>{appointment_date} da, {appointment_time_str}</b> da kutamiz. Agar sizda biron bir savol yoki rejalardagi o'zgarishlar bo'lsa, biz bilan oldindan bog'laning. '<b>Denta Art</b>' stomatologiyasini tanlaganingiz uchun tashakkur! 🦷
 
     Siz asosiy menyuda "Mening hisobim" => "Mening yozuvlarim" bo'limida yozuvni bekor qilishingiz mumkin.
 notification-message1 =
@@ -105,7 +105,7 @@ start_btn4 = 👤 Shaxsiy kabinet
 confirm = ✅ Kirishni tasdiqlang
 yes = ✅ Ha
 cancel = ❌ kiritishni bekor qilish
-app_my = ✏ Mening postlarim
+app_my = ✏ Mening yozuvlarim
 change_fio = 👤 Ismni o'zgartirish
 change_phum = 📞 Telefon raqamini o'zgartiring
 change_lang = 🌎 Tilni o'zgartirish
