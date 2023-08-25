@@ -321,6 +321,18 @@ def get_appointments_view(session: Session, chat_id: int):
     return session.query(Appointment).filter_by(chat_id=chat_id, status="Booked").all()
 
 
+def get_appointment_info(session: Session, year: int, month: int, day: int, hour: str):
+    appointment = session.query(Appointment).filter(Appointment.time).first()
+
+    if appointment:
+        appointment_info = {
+            'reason': appointment.reason,
+        }
+        return appointment_info
+    else:
+        return None
+
+
 def get_appointments(session: Session, chat_id: int, view_mode: str):
     if view_mode == "booked":
         return session.query(Appointment).filter_by(chat_id=chat_id, status="Booked").all()
@@ -340,7 +352,7 @@ def is_time_booked(session: Session, year: int, month: int, day: int, time: str)
 
 
 def get_booking_info(session: Session, year: int, month: int, day: int, time: str) -> dict:
-    appointment = session.query(Appointment).filter_by(year=year, month=month, day=day, time=time).first()
+    appointment = session.query(Appointment).filter_by(time=time).first()
     if appointment:
         return {
             'user_name': appointment.user_name,

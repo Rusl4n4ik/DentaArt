@@ -40,7 +40,7 @@ async def go_back(callback: types.CallbackQuery, state: FSMContext):
         await show_admin_calendar_from_button(callback)
     elif current_state == 'Offline:SET_HOUR':
         await state.reset_state()
-        await set_phnum_offline(state)
+        await set_phnum_offline(callback, state)
     elif current_state == 'Offline:SET_REASON':
         await choose_time(callback, state)
     elif current_state == 'Admins:BroadcastTextAll':
@@ -92,8 +92,9 @@ async def admin_show_users(callback: types.CallbackQuery):
     users = db.get_all_users()
     if users:
         page = 0
-        per_page = 1
+        per_page = 1  # Количество пользователей на странице
         total_pages = (len(users) + per_page - 1) // per_page
+
         user_list = ""
         for idx, user in enumerate(users[page * per_page:(page + 1) * per_page], start=page * per_page + 1):
             appointments = db.get_appointments_view(db.session, user['chat_id'])
@@ -129,8 +130,9 @@ async def admin_show_users(callback: types.CallbackQuery):
 async def admin_show_users_page(callback: types.CallbackQuery):
     page = int(callback.data.split(':')[1])
     users = db.get_all_users()
-    per_page = 1
+    per_page = 1  # Количество пользователей на странице
     total_pages = (len(users) + per_page - 1) // per_page
+
     user_list = ""
     for idx, user in enumerate(users[page * per_page:(page + 1) * per_page], start=page * per_page + 1):
         appointments = db.get_appointments(db.session, user['chat_id'], 'booked')
@@ -146,6 +148,7 @@ async def admin_show_users_page(callback: types.CallbackQuery):
         if len(user_list + user_info) >= 4096:
             break
         user_list += user_info + "\n"
+
     navigation_buttons = []
     if page > 0:
         navigation_buttons.append(
@@ -157,6 +160,7 @@ async def admin_show_users_page(callback: types.CallbackQuery):
     for button in navigation_buttons:
         reply_markup.insert(button)
     reply_markup.row(keyboard.back_ad)
+
     await callback.message.edit_text(f"Список пользователей:\n{user_list}", reply_markup=reply_markup, parse_mode="HTML")
 
 
@@ -164,6 +168,7 @@ def get_user_appointments_info(user):
     appointments = db.get_user_appointments(db.session, user['chat_id'])
     if appointments:
         appointments_info = ', '.join([appointment.time.strftime('%d %b %Y %H:%M') for appointment in appointments])
+
         return appointments_info
     return None
 
@@ -180,6 +185,7 @@ async def set_name_offline(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         chat_id = message.chat.id
         new_name = message.text
+
         if re.match(r'^[А-ЯЁA-Za-z]+\s[А-ЯЁA-Za-z]+\s[А-ЯЁA-Za-z]+$', new_name) or re.match(r'^[A-Za-z]+\s[A-Za-z]+\s[A-Za-z]+$', new_name):
             data['new_name'] = new_name
             await message.answer("Отлично! Теперь номер телефона в формате '+998XXXXXXXXX'.", reply_markup=types.ReplyKeyboardRemove())
@@ -195,9 +201,12 @@ async def set_phnum_offline(message: types.Message, state: FSMContext):
         new_phnum = message.text
         if re.match(r'^\+\d{12}$', new_phnum):
             data['new_phnum'] = new_phnum
+
+            # Get the current year and month
             current_date = datetime.now()
             current_year = current_date.year
             current_month = current_date.month
+
             await message.answer(
                 '📅 Чтобы записаться на приëм, выберите удобную для вас дату. Обратите внимание, что прошедшие даты недоступны для выбора.\n'
                 'Воспользуйтесь календарём и для начала выберите дату. <b>После того как отметили дату галочкой, нажмите кнопку</b> "🕘 Выбрать время:"',
@@ -213,32 +222,40 @@ def get_calendar_offline(year, month, selected_day=None, selected_month=None):
     current_year = current_date.year
     current_month = current_date.month
     current_day = current_date.day
+
     max_days = calendar.monthrange(year, month)[1]
+
+    # Собственные названия месяцев на русском языке
     month_names = [
         "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
         "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
     ]
+
     keyboard = InlineKeyboardMarkup(row_width=2)
+
     next_month = (month + 1) % 12
     row = []
     if year == current_year and month != current_month:
         row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{month:02d}'))
     row.append(InlineKeyboardButton(
-        text=month_names[month - 1],
+        text=month_names[month - 1],  # Индексы начинаются с 0
         callback_data=f'month:{year}-{month:02d}'
     ))
     if (year == current_year and next_month >= current_month and next_month != current_month + 2) or (
             year > current_year):
         row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
     keyboard.row(*row)
+
     day_buttons = []
     day_row = []
     for day in range(1, max_days + 1):
         if (year == current_year and month == current_month and day < current_day) or (
                 year == current_year and month < current_month):
             continue
+
         appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
         available_hours = db.get_available_hours(appointments_on_day)
+
         if available_hours:
             button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
             button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
@@ -249,15 +266,20 @@ def get_calendar_offline(year, month, selected_day=None, selected_month=None):
             button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
                 {'action': 'day', 'year': year, 'month': month, 'day': day}))
             day_row.append(button)
+
         if len(day_row) == 5:
             day_buttons.append(day_row)
             day_row = []
+
     if day_row:
         day_buttons.append(day_row)
+
     for row in day_buttons:
         keyboard.row(*row)
+
     keyboard.row(InlineKeyboardButton("🕘 Выбрать время", callback_data='action:choose_time'))
     keyboard.row(InlineKeyboardButton("🔙Назад", callback_data='back_ad'))
+
     return keyboard
 
 
@@ -265,8 +287,10 @@ def get_hour_offline(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
+
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
     available_hours = db.get_available_hours(appointments_on_day)
+
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:
@@ -276,16 +300,18 @@ def get_hour_offline(year, month, day, selected_hour=None):
                 button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
                 button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
                 keyboard.insert(button)
+
     back_button = InlineKeyboardButton("🔙Назад", callback_data='back_ad')
     keyboard.row(back_button)
+
     return keyboard
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('{"action": "day",'), state=Offline.SET_DAY)
+@dp.callback_query_handler(lambda c: c.data.startswith('{"action": "day",'), state=[Offline.SET_DAY, Offline.SET_HOUR])
 async def set_day_offline(callback_query: CallbackQuery, state: FSMContext):
     state_data = await state.get_data()
     print(state_data)
-    if not state_data.get('selected_year'):
+    if callback_query.data != 'back':
         data = json.loads(callback_query.data)
         selected_year = data.get('year')
         selected_month = data.get('month')
@@ -298,10 +324,12 @@ async def set_day_offline(callback_query: CallbackQuery, state: FSMContext):
         selected_day = state_data.get('selected_day')
         reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
     await Offline.SET_HOUR.set()
+
+    # В этом месте также добавьте кнопку "Выбрать время"
     await callback_query.message.edit_reply_markup(reply_markup=reply_markup)
 
 
-@dp.callback_query_handler(lambda c: c.data == 'action:choose_time', state=Offline.SET_HOUR)
+@dp.callback_query_handler(lambda c: c.data.startswith('action:choose_time'), state=Offline.SET_HOUR)
 async def choose_time_offline(callback_query: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     selected_year = data.get('selected_year')
@@ -326,11 +354,13 @@ async def set_hour_choose_offline(callback_query: CallbackQuery, state: FSMConte
     data = await state.get_data()
     selected_month = data.get('selected_month')
     selected_day = data.get('selected_day')
+
     if selected_month is None:
         selected_month = datetime.now().month
     if selected_day is None:
         await callback_query.answer("Ошибка! Не выбран день.")
         return
+
     try:
         appointment_time = datetime(
             year=datetime.now().year,
@@ -364,6 +394,7 @@ async def save_appointment_reason_offline(message: types.Message, state: FSMCont
         print(data)
         appointment_date = appointment_time.strftime(f"%d {keyboard.russian_month_names[appointment_time.month - 1]} %Y года")
         appointment_time_str = appointment_time.strftime("%H:%M")  # Форматируем время как "часы:минуты"
+
         confirmation_message_offline = (
             f"📝 Подтверждение записи в стоматологию <b>Denta Art</b>\n"
             f"<b>ФИО</b>: {name}\n"
@@ -373,6 +404,7 @@ async def save_appointment_reason_offline(message: types.Message, state: FSMCont
             f"<b>Описание симптомов/цель визита</b>: {data['reason']}\n\n\n"
             f"<i>Пожалуйста, проверьте предоставленную информацию. Если все верно, нажмите '✅ Подтвердить запись'. Если Вы хотите внести изменения, вернитесь назад</i>"
         )
+
         await message.answer(
             text=confirmation_message_offline,
             reply_markup=keyboard.off_confirm
@@ -396,8 +428,11 @@ async def add_appointment_to_db_offline(callback_query: types.CallbackQuery, sta
             f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
         )
         await callback_query.message.edit_text(confirmation_message_offline, parse_mode="HTML")
+        # await callback_query.message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
         await state.finish()
+
         group_chat_id = -921482477
+
         confirmation_group = (
             f"🆕 Новая запись в стоматологию\n"
             f"<b>ФИО</b>: {name}\n"
@@ -407,6 +442,7 @@ async def add_appointment_to_db_offline(callback_query: types.CallbackQuery, sta
             f"<b>Описание симптомов/цель визита</b>: {data['reason']}\n\n\n"
             f"<i>Пожалуйста, учтите данную запись в расписании и подготовьте все необходимое для приема.</i>"
         )
+
         await bot.send_message(chat_id=group_chat_id, text=confirmation_group, parse_mode="HTML")
 
 
@@ -481,6 +517,7 @@ async def process_broadcast_appointments(message: types.Message, state: FSMConte
 @dp.callback_query_handler(text="price_list", state="*")
 async def show_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
+
     prices = db.get_all_prices(db.session)
     price_list_text = '💵 Прайс-лист стоматологии "Denta Art":\n'
     for index, price in enumerate(prices, start=1):
@@ -491,8 +528,10 @@ async def show_price_list(callback_query: CallbackQuery):
 @dp.callback_query_handler(text="ch_price")
 async def edit_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
+
     prices = db.get_all_prices(db.session)
     markup = keyboard.create_price_edit_keyboard(prices)
+
     await callback_query.message.answer("Выберите услугу, для которой вы хотите изменить название или прайс:",
                                         reply_markup=markup)
 
@@ -500,16 +539,20 @@ async def edit_price_list(callback_query: CallbackQuery):
 @dp.callback_query_handler(keyboard.price_edit_callback.filter())
 async def edit_selected_service(callback_query: CallbackQuery, callback_data: dict):
     await callback_query.answer()
+
     service_index = int(callback_data["service_index"])
-    selected_service = db.get_price_by_index(db.session, service_index)
+    selected_service = db.get_price_by_index(db.session, service_index)  # Исправлено здесь
+
     if selected_service:
         buttons = [
             InlineKeyboardButton('Изменить название', callback_data=f"edit_name:{service_index}"),
             InlineKeyboardButton('Изменить прайс', callback_data=f"ed_price:{service_index}"),
             InlineKeyboardButton('🔙 Назад', callback_data='ch_price')
         ]
+
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(*buttons)
+
         await callback_query.message.answer(f"Выберите действие для услуги '{selected_service.service}':",
                                             reply_markup=markup)
     else:
@@ -519,10 +562,13 @@ async def edit_selected_service(callback_query: CallbackQuery, callback_data: di
 @dp.callback_query_handler(lambda c: c.data.startswith("ed_price:"), state="*")
 async def edit_service_price(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
+
     service_index = int(callback_query.data.split(":")[1])
     await callback_query.message.answer(f"Введите новый прайс для услуги '{service_index + 1}':")
+
     async with state.proxy() as data:
         data["editing_service"] = service_index
+
     await Admins.EditPriceAmount.set()
 
 
@@ -530,7 +576,9 @@ async def edit_service_price(callback_query: CallbackQuery, state: FSMContext):
 async def save_new_service_price(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         service_index = data["editing_service"]
+
     new_price = message.text.strip()
+
     if new_price:
         service = db.get_price_by_index(db.session,service_index)
         if service:
@@ -542,16 +590,20 @@ async def save_new_service_price(message: types.Message, state: FSMContext):
             await message.answer("Услуга не найдена.")
     else:
         await message.answer("Изменения не сохранены.")
+
     await state.finish()
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("edit_name:"), state="*")
 async def edit_service_name(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
+
     service_index = int(callback_query.data.split(":")[1])
     await callback_query.message.answer(f"Введите новое название для услуги '{service_index + 1}':")
+
     async with state.proxy() as data:
         data["editing_service"] = service_index
+
     await Admins.EditServiceName.set()
 
 
@@ -559,7 +611,9 @@ async def edit_service_name(callback_query: CallbackQuery, state: FSMContext):
 async def save_new_service_name(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         service_index = data["editing_service"]
+
     new_name = message.text.strip()
+
     if new_name:
         session = db.Session()
         try:
@@ -573,19 +627,26 @@ async def save_new_service_name(message: types.Message, state: FSMContext):
             session.close()
     else:
         await message.answer("Изменения не сохранены.")
+
     await state.finish()
 
 
 @dp.callback_query_handler(text='view_app', state='*')
 async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
+
     online_appointments = db.get_all_appointments(db.session)
     offline_appointments = db.get_all_offline_appointments(db.session)
-    all_appointments = online_appointments + offline_appointments
-    page_size = 1
-    page_number = 1
+
+    # Объединяем списки записей
+    all_appointments = online_appointments + offline_appointments  # Получите список всех записей
+
+    page_size = 5  # Количество записей на одной странице
+    page_number = 1  # Номер текущей страницы
+
     start_idx = (page_number - 1) * page_size
     end_idx = min(start_idx + page_size, len(all_appointments))
+
     if all_appointments:
         message = f"Список записей (страница {page_number}/{math.ceil(len(all_appointments) / page_size)}):\n\n"
         for idx, appointment in enumerate(all_appointments[start_idx:end_idx], start=start_idx + 1):
@@ -593,6 +654,7 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
                 f"%d {keyboard.russian_month_names[appointment.time.month - 1]} %Y года").lstrip('0')
             appointment_time_str = appointment.time.strftime("%H:%M")
             appointment_reason = appointment.reason
+
             try:
                 user_info = db.get_user_info(appointment.chat_id)
                 if user_info:
@@ -603,6 +665,7 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
                 if user_info:
                     user_name = user_info['name']
                     user_phnum = user_info['phnum']
+
             message += (
                 f"<b>Запись #{idx}</b>\n"
                 f"<b>Дата записи:</b> {appointment_date}\n"
@@ -611,6 +674,8 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
                 f"<b>Номер телефона:</b> {user_phnum}\n"
                 f"<b>Симптомы/цель визита:</b> {appointment_reason}\n\n"
             )
+
+        # Добавление кнопок для перехода по страницам
         navigation_buttons = []
         if len(all_appointments) > end_idx:
             navigation_buttons.append(
@@ -618,6 +683,7 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
         if page_number > 1:
             navigation_buttons.append(
                 InlineKeyboardButton("⬅️ Предыдущая страница", callback_data="view_app_prev_page"))
+
         if navigation_buttons:
             reply_markup = InlineKeyboardMarkup(row_width=1)
             for button in navigation_buttons:
@@ -625,10 +691,8 @@ async def view_appointments(callback_query: CallbackQuery, state: FSMContext):
             reply_markup.row(keyboard.back_ad)
         else:
             reply_markup = InlineKeyboardMarkup().add(keyboard.back_ad)
+
         await callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode='HTML')
-    else:
-        reply_markup = InlineKeyboardMarkup().add(keyboard.back_ad)
-        await callback_query.message.edit_text("Нет записей.", reply_markup=reply_markup, parse_mode='HTML')
 
 
 @dp.callback_query_handler(text='view_app_next_page')
@@ -643,28 +707,38 @@ async def view_app_prev_page(callback_query: CallbackQuery):
 
 async def view_app_page_navigation(callback_query: CallbackQuery, forward: bool):
     await callback_query.answer()
+
     page_number = int(callback_query.data.split(':')[1]) if ':' in callback_query.data else 1
+
     if forward:
         page_number += 1
     else:
         page_number -= 1
+
     await view_app_page_update(callback_query, page_number)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('view_app_page:'))
 async def view_app_page(callback_query: CallbackQuery):
     await callback_query.answer()
-    page_number = int(callback_query.data.split(':')[1])
+
+    page_number = int(callback_query.data.split(':')[1])  # Получите номер страницы из callback_query
+
     await view_app_page_update(callback_query, page_number)
 
 
 async def view_app_page_update(callback_query: CallbackQuery, page_number: int):
     online_appointments = db.get_all_appointments(db.session)
     offline_appointments = db.get_all_offline_appointments(db.session)
-    all_appointments = online_appointments + offline_appointments
-    page_size = 1
+
+    # Объединяем списки записей
+    all_appointments = online_appointments + offline_appointments  # Получите список всех записей
+
+    page_size = 5  # Количество записей на одной странице
+
     start_idx = (page_number - 1) * page_size
     end_idx = min(start_idx + page_size, len(all_appointments))
+
     if all_appointments:
         message = f"Список записей (страница {page_number}/{math.ceil(len(all_appointments) / page_size)}):\n\n"
         for idx, appointment in enumerate(all_appointments[start_idx:end_idx], start=start_idx + 1):
@@ -682,6 +756,7 @@ async def view_app_page_update(callback_query: CallbackQuery, page_number: int):
                 if user_info:
                     user_name = user_info['name']
                     user_phnum = user_info['phnum']
+
             message += (
                 f"<b>Запись #{idx}</b>\n"
                 f"<b>Дата записи:</b> {appointment_date}\n"
@@ -690,20 +765,24 @@ async def view_app_page_update(callback_query: CallbackQuery, page_number: int):
                 f"<b>Номер телефона:</b> {user_phnum}\n"
                 f"<b>Симптомы/цель визита:</b> {appointment_reason}\n\n"
             )
+
+        # Добавление кнопок для перехода по страницам
         navigation_buttons = []
+
         if page_number > 1:
             navigation_buttons.append(
                 InlineKeyboardButton("⬅️ Предыдущая страница", callback_data=f"view_app_page:{page_number - 1}"))
+
         if end_idx < len(all_appointments):
             navigation_buttons.append(
                 InlineKeyboardButton("➡️ Следующая страница", callback_data=f"view_app_page:{page_number + 1}"))
+
         reply_markup = InlineKeyboardMarkup(row_width=1)
         for button in navigation_buttons:
             reply_markup.insert(button)
         reply_markup.row(keyboard.back_ad)
+
         await callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode='HTML')
-    else:
-        await callback_query.message.edit_text("Нет записей.", reply_markup=keyboard.back_ad)
 
 
 @dp.callback_query_handler(lambda c: c.data == 'calendar', state="*")
@@ -721,32 +800,40 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
     current_year = current_date.year
     current_month = current_date.month
     current_day = current_date.day
+
     max_days = calendar.monthrange(year, month)[1]
+
+    # Собственные названия месяцев на русском языке
     month_names = [
         "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
         "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
     ]
+
     keyboard = InlineKeyboardMarkup(row_width=2)
+
     next_month = (month + 1) % 12
     row = []
     if year == current_year and month != current_month:
         row.append(InlineKeyboardButton("◀️", callback_data=f'prev:{year}-{month:02d}'))
     row.append(InlineKeyboardButton(
-        text=month_names[month - 1],
+        text=month_names[month - 1],  # Индексы начинаются с 0
         callback_data=f'month:{year}-{month:02d}'
     ))
     if (year == current_year and next_month >= current_month and next_month != current_month + 2) or (
             year > current_year):
         row.append(InlineKeyboardButton("▶️", callback_data=f'next:{year}-{next_month:02d}'))
     keyboard.row(*row)
+
     day_buttons = []
     day_row = []
     for day in range(1, max_days + 1):
         if (year == current_year and month == current_month and day < current_day) or (
                 year == current_year and month < current_month):
             continue
+
         appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
         available_hours = db.get_available_hours(appointments_on_day)
+
         if available_hours:
             button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
             button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
@@ -757,15 +844,20 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
             button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
                 {'action': 'day', 'year': year, 'month': month, 'day': day}))
             day_row.append(button)
+
         if len(day_row) == 5:
             day_buttons.append(day_row)
             day_row = []
+
     if day_row:
         day_buttons.append(day_row)
+
     for row in day_buttons:
         keyboard.row(*row)
+
     keyboard.row(InlineKeyboardButton("🕘 Выбрать время", callback_data='action:choose_time'))
     keyboard.row(InlineKeyboardButton("🔙Назад", callback_data='back_ad'))
+
     return keyboard
 
 
@@ -773,16 +865,24 @@ def get_hour_menu(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
+
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
     available_hours = db.get_available_hours(appointments_on_day)
+
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:
                 break
             formatted_time = f"{hour:02d}:{minute:02d}"
-            button_text = f"{formatted_time} ✅" if formatted_time in available_hours else formatted_time
-            button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
-            keyboard.insert(button)
+            if formatted_time in available_hours:
+                button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
+                button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+                keyboard.insert(button)
+
+    back_button = InlineKeyboardButton("🔙Назад", callback_data='back_ad')
+    keyboard.row(back_button)
+
+    return keyboard
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('prev:') or c.data.startswith('next:'), state='*')
@@ -793,6 +893,7 @@ async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
     current_date = datetime.now()
     current_year = current_date.year
     current_month = current_date.month
+
     if direction == 'prev':
         prev_month = (selected_month - 1) % 12
         prev_year = selected_year - 1 if prev_month == 0 else selected_year
@@ -823,8 +924,10 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
         selected_year = state_data.get('selected_year')
         selected_month = state_data.get('selected_month')
         selected_day = state_data.get('selected_day')
-        reply_markup = get_hour_menu(selected_year, selected_month, selected_day)
+        reply_markup = get_calendar_menu(selected_year, selected_month, selected_day, selected_month)
     await Admins.ViewHour.set()
+
+    # В этом месте также добавьте кнопку "Выбрать время"
     await callback_query.message.edit_reply_markup(reply_markup=reply_markup)
 
 
@@ -837,26 +940,3 @@ async def choose_time(callback_query: CallbackQuery, state: FSMContext):
     keyboard = get_hour_menu(selected_year, selected_month, selected_day)
     await callback_query.message.edit_text(text='Доступные временые слоты' ,reply_markup=keyboard)
     await Admins.HOUR_CHOOSE.set()
-
-
-@dp.callback_query_handler(lambda c: c.data.startswith('hour:'), state=Admins.HOUR_CHOOSE)
-async def chosen_hour(callback_query: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    selected_year = data.get('selected_year')
-    selected_month = data.get('selected_month')
-    selected_day = data.get('selected_day')
-    chosen_hour = callback_query.data.split(':')[1]  # Выбранное время
-
-    # Здесь вы можете получить информацию о записи на выбранное время
-    appointment_info = db.get_appointment_info(selected_year, selected_month, selected_day, chosen_hour)
-
-    if appointment_info:
-        appointment_text = f"Информация о записи:\n"\
-                           f"Дата: {selected_day}.{selected_month}.{selected_year}\n"\
-                           f"Время: {chosen_hour}\n"\
-                           f"Пациент: {appointment_info['patient_name']}\n"\
-                           f"Причина: {appointment_info['reason']}"
-    else:
-        appointment_text = "На данное время нет записей."
-
-    await callback_query.message.edit_text(text=appointment_text)
