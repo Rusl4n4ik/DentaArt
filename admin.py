@@ -38,9 +38,6 @@ async def go_back(callback: types.CallbackQuery, state: FSMContext):
     if current_state == 'Admins:HOUR_CHOOSE':
         await state.reset_state()
         await show_admin_calendar_from_button(callback)
-    elif current_state == 'Offline:SET_HOUR':
-        await state.reset_state()
-        await set_phnum_offline(callback, state)
     elif current_state == 'Offline:SET_REASON':
         await choose_time(callback, state)
     elif current_state == 'Admins:BroadcastTextAll':
@@ -531,6 +528,7 @@ async def edit_price_list(callback_query: CallbackQuery):
     await callback_query.answer()
     prices = db.get_all_prices(db.session)
     markup = keyboard.create_price_edit_keyboard(prices)
+    markup.add(keyboard.back_ad)
     await callback_query.message.answer("Выберите услугу, для которой вы хотите изменить название или прайс:",
                                         reply_markup=markup)
 
