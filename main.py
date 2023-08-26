@@ -282,7 +282,8 @@ async def start_appointment(message: types.Message):
                     year == current_year and month < current_month):
                 continue
             appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-            available_hours = db.get_available_hours(appointments_on_day)
+            appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+            available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
             if available_hours:
                 button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
                 button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
@@ -361,7 +362,8 @@ async def navigate_calendar(callback_query: CallbackQuery, state: FSMContext):
                     year == current_year and month < current_month):
                 continue
             appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-            available_hours = db.get_available_hours(appointments_on_day)
+            appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+            available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
             if available_hours:
                 button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
                 button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
@@ -450,7 +452,8 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
                         year == current_year and month < current_month):
                     continue
                 appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-                available_hours = db.get_available_hours(appointments_on_day)
+                appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+                available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
                 if available_hours:
                     button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
                     button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
@@ -515,7 +518,8 @@ async def set_day(callback_query: CallbackQuery, state: FSMContext):
                         year == current_year and month < current_month):
                     continue
                 appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-                available_hours = db.get_available_hours(appointments_on_day)
+                appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+                available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
                 if available_hours:
                     button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
                     button = InlineKeyboardButton(text=button_text, callback_data=json.dumps(
@@ -557,7 +561,8 @@ async def choose_time(callback_query: CallbackQuery, state: FSMContext):
         end_hour = 18
         keyboard = InlineKeyboardMarkup(row_width=3)
         appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-        available_hours = db.get_available_hours(appointments_on_day)
+        appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+        available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
         id = callback_query.from_user.id
         user_language = db.get_user_language(db.session, id)
         for hour in range(start_hour, end_hour + 1):

@@ -254,7 +254,8 @@ def get_calendar_offline(year, month, selected_day=None, selected_month=None):
             continue
 
         appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-        available_hours = db.get_available_hours(appointments_on_day)
+        appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+        available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
 
         if available_hours:
             button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
@@ -289,7 +290,8 @@ def get_hour_offline(year, month, day, selected_hour=None):
     keyboard = InlineKeyboardMarkup(row_width=3)
 
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-    available_hours = db.get_available_hours(appointments_on_day)
+    appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+    available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
 
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
@@ -813,7 +815,8 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
             continue
 
         appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-        available_hours = db.get_available_hours(appointments_on_day)
+        appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+        available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
 
         if available_hours:
             button_text = f"{day} ✅" if selected_day == day and selected_month == month else str(day)
@@ -847,7 +850,8 @@ def get_hour_menu(year, month, day, selected_hour=None):
     end_hour = 18
     keyboard = InlineKeyboardMarkup(row_width=3)
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
-    available_hours = db.get_available_hours(appointments_on_day)
+    appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
+    available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:

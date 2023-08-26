@@ -98,11 +98,36 @@ def get_appointments_in_time_range(db: Session, start_time: datetime, end_time: 
 
 
 def get_appointments_on_day(db: Session, year: int, month: int, day: int):
-    return db.query(Appointment).filter(
-        extract('year', Appointment.time) == year,
-        extract('month', Appointment.time) == month,
-        extract('day', Appointment.time) == day
-    ).all()
+    return (
+        db.query(Appointment)
+        .filter(
+            extract('year', Appointment.time) == year,
+            extract('month', Appointment.time) == month,
+            extract('day', Appointment.time) == day
+        )
+        .all()
+    )
+
+def get_appointments_on_day_off(db: Session, year: int, month: int, day: int):
+    return (
+        db.query(Offline)
+        .filter(
+            extract('year', Offline.time) == year,
+            extract('month', Offline.time) == month,
+            extract('day', Offline.time) == day
+        )
+        .all()
+    )
+
+
+def get_available_hours(appointments_on_day, appointments_on_day_off):
+    all_hours = set([f"{hour:02d}:{minute:02d}" for hour in range(8, 19) for minute in (0, 30) if not (hour == 18 and minute > 0)])
+    booked_hours_appointments = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day])
+    booked_hours_offline = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day_off])
+    booked_hours = booked_hours_appointments.union(booked_hours_offline)
+    available_hours = all_hours - booked_hours
+    return available_hours
+
 
 
 def get_user_language(session, id: int):
@@ -116,14 +141,6 @@ def update_user_language(session, chat_id: int, new_language: str):
     if user:
         user.language = new_language
         session.commit()
-
-
-
-def get_available_hours(appointments_on_day):
-    all_hours = set([f"{hour:02d}:{minute:02d}" for hour in range(8, 19) for minute in (0, 30) if not (hour == 18 and minute > 0)])
-    booked_hours = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day])
-    available_hours = all_hours - booked_hours
-    return available_hours
 
 ################################################################################3
 
