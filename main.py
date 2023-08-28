@@ -99,6 +99,7 @@ async def about(message: types.Message):
     loading_msg = await message.answer("🔄", reply_markup=types.ReplyKeyboardRemove())
     await asyncio.sleep(1)
     await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+    await bot.send_location(chat_id=message.chat.id, latitude=39.661392, longitude=66.924614)
     await message.answer(get_text(user_language, 'info'), reply_markup=keyboard.get_back_keyboard(user_language))
 
 
@@ -559,21 +560,35 @@ async def choose_time(callback_query: CallbackQuery, state: FSMContext):
     def get_hour_menu(year, month, day, selected_hour=None):
         start_hour = 8
         end_hour = 18
+        current_datetime = datetime.now()  # Получение текущей даты и времени
+        current_year = current_datetime.year
+        current_month = current_datetime.month
+        current_day = current_datetime.day
+        current_hour = current_datetime.hour
+        current_minute = current_datetime.minute
+
         keyboard = InlineKeyboardMarkup(row_width=3)
         appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
         appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
         available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
+
         id = callback_query.from_user.id
         user_language = db.get_user_language(db.session, id)
+
         for hour in range(start_hour, end_hour + 1):
             for minute in range(0, 60, 30):
                 if hour == end_hour and minute > 0:
                     break
                 formatted_time = f"{hour:02d}:{minute:02d}"
-                if formatted_time in available_hours:
-                    button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
-                    button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
-                    keyboard.insert(button)
+
+                # Проверка на то, что дата и время еще предстоят
+                if (year, month, day) > (current_year, current_month, current_day) or \
+                        ((year, month, day) == (current_year, current_month, current_day) and
+                         (hour > current_hour or (hour == current_hour and minute > current_minute))):
+                    if formatted_time in available_hours:
+                        button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
+                        button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+                        keyboard.insert(button)
 
         back_button = InlineKeyboardButton(get_text(user_language, 'back'), callback_data='back')
         keyboard.row(back_button)
@@ -958,9 +973,9 @@ async def cancel_appointment_confirm(callback_query: CallbackQuery, state: FSMCo
                 selected_day=data['selected_day'],
                 selected_month=russian_month_names[data['selected_month'] - 1],
                 selected_year=data['selected_year'],
-                selected_hour=data['selected_hour'],
-                selected_minute=data['selected_minute']
+                selected_time="{:02d}:{:02d}".format(data['selected_hour'], data['selected_minute'])
             )
+
             await callback_query.message.edit_text(filled_cancel_confirmation_message, reply_markup=keyboard.get_del_confirm_keyboard(user_language))
             await Appointments.DELETE_CONFIRM.set()
         else:
@@ -969,8 +984,7 @@ async def cancel_appointment_confirm(callback_query: CallbackQuery, state: FSMCo
                 selected_day=data['selected_day'],
                 selected_month=uzb_month_names[data['selected_month'] - 1],
                 selected_year=data['selected_year'],
-                selected_hour=data['selected_hour'],
-                selected_minute=data['selected_minute']
+                selected_time=f"{data['selected_hour']:02d}:{data['selected_minute']:02d}"
             )
             await callback_query.message.edit_text(filled_cancel_confirmation_message,
                                                    reply_markup=keyboard.get_del_confirm_keyboard(user_language))
@@ -1007,7 +1021,7 @@ async def set_cancel_reason(message: types.Message, state: FSMContext):
             appointment_date = data['selected_day']
             appointment_month = russian_month_names[data['selected_month'] - 1]
             appointment_year = data['selected_year']
-            appointment_time = f"{data['selected_hour']}:{data['selected_minute']}"
+            appointment_time = "{:02d}:{:02d}".format(data['selected_hour'], data['selected_minute'])
             appointment_reason = data.get('appointment_reason', '')
 
             chat_id = message.chat.id
@@ -1033,13 +1047,13 @@ async def set_cancel_reason(message: types.Message, state: FSMContext):
                 appointment_date = data['selected_day']
                 appointment_month = russian_month_names[data['selected_month'] - 1]
                 appointment_year = data['selected_year']
-                appointment_time = f"{data['selected_hour']}:{data['selected_minute']}"
+                appointment_time = "{:02d}:{:02d}".format(data['selected_hour'], data['selected_minute'])
                 appointment_reason = data.get('appointment_reason', '')
             else:
                 appointment_date = data['selected_day']
                 appointment_month = uzb_month_names[data['selected_month'] - 1]
                 appointment_year = data['selected_year']
-                appointment_time = f"{data['selected_hour']}:{data['selected_minute']}"
+                appointment_time = "{:02d}:{:02d}".format(data['selected_hour'], data['selected_minute'])
                 appointment_reason = data.get('appointment_reason', '')
             filled_cancel_confirmation = cancel_info.format(
                 appointment_date=appointment_date,

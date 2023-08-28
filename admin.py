@@ -49,13 +49,14 @@ async def go_back(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
 
 
-@dp.message_handler(commands=['add_service'], state='*')
-async def add_service_command(message: types.Message):
-    if db.is_admin(message.chat.id):
-        await message.answer("Введите название новой услуги:")
+@dp.callback_query_handler(lambda c: c.data == 'add_service')
+async def add_service_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    if db.is_admin(user_id):
+        await callback_query.message.edit_text("Введите название новой услуги:", reply_markup=keyboard.back_admin)
         await Admins.AddServiceName.set()
     else:
-        await message.answer("Вы не являетесь администратором.")
+        await callback_query.message.answer("Вы не являетесь администратором.")
 
 
 @dp.message_handler(state=Admins.AddServiceName)
@@ -63,7 +64,7 @@ async def add_service_name(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['name'] = message.text
     await Admins.AddServicePrice.set()
-    await message.answer("Введите цену для новой услуги:")
+    await message.answer("Введите цену для новой услуги:", reply_markup=keyboard.back_admin)
 
 
 @dp.message_handler(lambda message: True, state=Admins.AddServicePrice)
@@ -72,7 +73,7 @@ async def add_service_price(message: types.Message, state: FSMContext):
         name = data['name']
     price = message.text
     db.add_price_and_service(name, price)
-    await message.answer(f"Услуга '{name}' с ценой {price} успешно добавлена в прайс-лист.")
+    await message.answer(f"Услуга '{name}' с ценой {price} успешно добавлена в прайс-лист.", reply_markup=keyboard.back_admin)
     await state.finish()
 
 
@@ -284,18 +285,28 @@ def get_calendar_offline(year, month, selected_day=None, selected_month=None):
 def get_hour_offline(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18
-    keyboard = InlineKeyboardMarkup(row_width=3)
+    current_datetime = datetime.now()  # Получение текущей даты и времени
+    current_year = current_datetime.year
+    current_month = current_datetime.month
+    current_day = current_datetime.day
+    current_hour = current_datetime.hour
+    current_minute = current_datetime.minute
 
+    keyboard = InlineKeyboardMarkup(row_width=3)
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
     appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
     available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
-
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:
                 break
             formatted_time = f"{hour:02d}:{minute:02d}"
-            if formatted_time in available_hours:
+
+            # Проверка на доступное время и то, что дата и время еще предстоят
+            if formatted_time in available_hours and \
+                    ((year, month, day) > (current_year, current_month, current_day) or
+                     ((year, month, day) == (current_year, current_month, current_day) and
+                      (hour > current_hour or (hour == current_hour and minute > current_minute)))):
                 button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
                 button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
                 keyboard.insert(button)
@@ -422,11 +433,10 @@ async def add_appointment_to_db_offline(callback_query: types.CallbackQuery, sta
         appointment_time_str = appointment_time.strftime("%H:%M")
         db.create_appointment_offline(name, phnum, reason, appointment_time)
         confirmation_message_offline = (
-            f"✅ Ваша запись успешно подтверждена!\n"
-            f"Ждем вас <b>{appointment_date} в {appointment_time_str}</b>. Если у вас возникнут вопросы или изменения в планах, пожалуйста, свяжитесь с нами заранее. Спасибо за выбор стоматологии '<b>Denta Art</b>'! 🦷\n\n"
-            f"Отменить запись можно в главном меню, в разделе 'Личный кабинет' => 'Мои записи'"
+            f"✅ Запись успешно подтверждена!\n"
+            f"Запись назначена на <b>{appointment_date} в {appointment_time_str}</b>."
         )
-        await callback_query.message.edit_text(confirmation_message_offline, parse_mode="HTML")
+        await callback_query.message.edit_text(confirmation_message_offline, reply_markup=keyboard.back_admin, parse_mode="HTML")
         # await callback_query.message.answer("🛠 Выберите действие:", reply_markup=keyboard.admin_keyboard)
         await state.finish()
 
@@ -846,16 +856,27 @@ def get_calendar_menu(year, month, selected_day=None, selected_month=None):
 def get_hour_menu(year, month, day, selected_hour=None):
     start_hour = 8
     end_hour = 18
+    current_datetime = datetime.now()  # Получение текущей даты и времени
+    current_year = current_datetime.year
+    current_month = current_datetime.month
+    current_day = current_datetime.day
+    current_hour = current_datetime.hour
+    current_minute = current_datetime.minute
+
     keyboard = InlineKeyboardMarkup(row_width=3)
     appointments_on_day = db.get_appointments_on_day(db.session, year, month, day)
     appointments_on_day_off = db.get_appointments_on_day_off(db.session, year, month, day)
     available_hours = db.get_available_hours(appointments_on_day, appointments_on_day_off)
+
     for hour in range(start_hour, end_hour + 1):
         for minute in range(0, 60, 30):
             if hour == end_hour and minute > 0:
                 break
             formatted_time = f"{hour:02d}:{minute:02d}"
-            if formatted_time in available_hours:
+            if formatted_time in available_hours and \
+                    ((year, month, day) > (current_year, current_month, current_day) or
+                     ((year, month, day) == (current_year, current_month, current_day) and
+                      (hour > current_hour or (hour == current_hour and minute > current_minute)))):
                 button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
                 button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
                 keyboard.insert(button)

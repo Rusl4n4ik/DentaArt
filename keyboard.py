@@ -85,6 +85,7 @@ admin_keyboard.add(InlineKeyboardButton('📢 Рассылка', callback_data='
 admin_keyboard.add(InlineKeyboardButton('💵 Прайс-лист', callback_data='price_list'))
 admin_keyboard.add(InlineKeyboardButton('📝 Просмотреть записи', callback_data='view_app'))
 admin_keyboard.add(InlineKeyboardButton('📝 Календарь', callback_data='calendar'))
+admin_keyboard.add(InlineKeyboardButton('💵 Добавить услугу', callback_data='add_service'))
 #####################################################################
 
 broadcast_option_menu = InlineKeyboardMarkup(row_width=1)

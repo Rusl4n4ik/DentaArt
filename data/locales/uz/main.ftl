@@ -89,7 +89,7 @@ appointment_info = 📋 Qabul haqida ma'lumot:
 appointment_info1 = <b>Bekor qilish uchun, quyidagi tugmani foydalaning:</b>
                     ❌ Qabulni bekor qilish
 wrong_app = Noto'g'ri qabul raqami.
-cancel-confirmation = Siz tanlagan kunda {selected_day} {selected_month} {selected_year} yil {selected_hour}:{selected_minute}. Ushbu qabulni bekor qilmoqchimisiz?
+cancel-confirmation = Siz tanlagan kunda {selected_day} {selected_month} {selected_year} yil {selected_time}. Ushbu qabulni bekor qilmoqchimisiz?
 cancellation-reason-prompt = 📝 <b>Iltimos, qabulni bekor qilish sababini kiriting</b>:
                             Ushbu xizmat sifatini yaxshilashga yordam bering.
 cannot-delete-cancelled-appointment = Siz bekor qilinayotgan qabullarni qayta o'chira olmaysiz.

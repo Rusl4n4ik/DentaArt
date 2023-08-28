@@ -103,10 +103,11 @@ def get_appointments_on_day(db: Session, year: int, month: int, day: int):
         .filter(
             extract('year', Appointment.time) == year,
             extract('month', Appointment.time) == month,
-            extract('day', Appointment.time) == day
-        )
+            extract('day', Appointment.time) == day,
+            Appointment.status == 'booked')
         .all()
     )
+
 
 def get_appointments_on_day_off(db: Session, year: int, month: int, day: int):
     return (
@@ -213,7 +214,7 @@ def get_all_admins():
 
 
 def is_admin(chat_id):
-    admins = [1373285788]
+    admins = [1373285788, 5686506835]
     return chat_id in admins
 ##########################################################
 
