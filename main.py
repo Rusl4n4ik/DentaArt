@@ -9,7 +9,7 @@ from db import Session, Appointment
 from keyboard import russian_month_names, uzb_month_names
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.types import ReplyKeyboardRemove, CallbackQuery, ParseMode
+from aiogram.types import ReplyKeyboardRemove, CallbackQuery, ParseMode, ContentType
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import db,re,keyboard
 from aiogram.dispatcher import FSMContext
@@ -23,7 +23,7 @@ from aiogram.dispatcher.filters import Text
 scheduler = AsyncIOScheduler()
 scheduler.start()
 
-API_TOKEN = '6494026269:AAFptKHhMWHC2vCbUBNfNwrij-dDHANbkdw'
+API_TOKEN = '5673164433:AAHwz43BD8H9ODfrICdUGfX-J8B3Ni2tkZE'
 
 bot = Bot(token=API_TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot, storage=MemoryStorage())
@@ -36,7 +36,7 @@ user_languages = {}
 async def start_handler(message: types.Message, state: FSMContext):
     exist_user = db.check_existing(message.chat.id)
     if not exist_user:
-        await message.answer('👋Добро пожаловать в телеграм-бот стоматологии <b>Denta Art</b>\n <b><i>Выберите язык интерфейса:</i></b>\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n 👋<b>Denta Art</b> stomatologiyasi telegram- botiga xush kelibsiz\n <b><i>Interfeys tilini tanlang:</i></b>', reply_markup=keyboard.languages)
+        await message.answer('👋Добро пожаловать в телеграм-бот стоматологии <b>Sadullayev Denta Art</b>\n <b><i>Выберите язык интерфейса:</i></b>\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n 👋<b>Sadullayev Denta Art</b> stomatologiyasi telegram- botiga xush kelibsiz\n <b><i>Interfeys tilini tanlang:</i></b>', reply_markup=keyboard.languages)
 
         @dp.callback_query_handler(lambda c: c.data in ['ru', 'uz'])
         async def process_callback_language(callback_query: types.CallbackQuery):
@@ -100,7 +100,11 @@ async def about(message: types.Message):
     await asyncio.sleep(1)
     await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
     await bot.send_location(chat_id=message.chat.id, latitude=39.661392, longitude=66.924614)
-    await message.answer(get_text(user_language, 'info'), reply_markup=keyboard.get_back_keyboard(user_language))
+    await message.answer_photo(
+        photo="AgACAgIAAxkBAAPdZO3TF5aBcaczVqh3KWeB2bnawPQAAq7NMRuSrXBL2Nd_Xks-M4ABAAMCAAN5AAMwBA",
+        caption=get_text(user_language, 'info'),
+        reply_markup=keyboard.get_back_keyboard(user_language)
+    )
 
 
 @dp.message_handler(Text(["💵 Прайс-лист","💵 Narxlar ro'yxati"]), state='*')
@@ -113,8 +117,9 @@ async def price(message: types.Message):
     prices = db.get_all_prices(db.session)
     price_list_text = get_text(user_language, 'price_info')
     price_list_text += "\n"
-    for index, price in enumerate(prices, start=1):
-        price_list_text += f"{index}. <b>{price.service}:</b> {price.price}\n"
+    for price in prices:
+        price_list_text += f"<b>{price.service}:</b> {price.price}\n\n"
+    price_list_text += get_text(user_language, 'bazar')
     await message.answer(price_list_text, parse_mode="HTML", reply_markup=keyboard.get_back_keyboard(user_language))
 
 
@@ -559,7 +564,7 @@ async def choose_time(callback_query: CallbackQuery, state: FSMContext):
 
     def get_hour_menu(year, month, day, selected_hour=None):
         start_hour = 8
-        end_hour = 18
+        end_hour = 17
         current_datetime = datetime.now()  # Получение текущей даты и времени
         current_year = current_datetime.year
         current_month = current_datetime.month
@@ -576,23 +581,23 @@ async def choose_time(callback_query: CallbackQuery, state: FSMContext):
         user_language = db.get_user_language(db.session, id)
 
         for hour in range(start_hour, end_hour + 1):
-            for minute in range(0, 60, 30):
-                if hour == end_hour and minute > 0:
-                    break
-                formatted_time = f"{hour:02d}:{minute:02d}"
+            if 13 <= hour < 14:  # Пропускаем обеденное время с 13:00 до 14:00
+                continue
+            formatted_time = f"{hour:02d}:00"
 
-                # Проверка на то, что дата и время еще предстоят
-                if (year, month, day) > (current_year, current_month, current_day) or \
-                        ((year, month, day) == (current_year, current_month, current_day) and
-                         (hour > current_hour or (hour == current_hour and minute > current_minute))):
-                    if formatted_time in available_hours:
-                        button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
-                        button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
-                        keyboard.insert(button)
+            # Проверка на доступное время и то, что дата и время еще предстоят
+            if (year, month, day) > (current_year, current_month, current_day) or \
+                    ((year, month, day) == (current_year, current_month, current_day) and
+                     (hour > current_hour or (hour == current_hour and 0 > current_minute))):
+                if formatted_time in available_hours:
+                    button_text = f"{formatted_time} ✅" if formatted_time == selected_hour else formatted_time
+                    button = InlineKeyboardButton(text=button_text, callback_data=f'hour:{formatted_time}')
+                    keyboard.insert(button)
 
         back_button = InlineKeyboardButton(get_text(user_language, 'back'), callback_data='back')
         keyboard.row(back_button)
         return keyboard
+
     keyboard = get_hour_menu(selected_year, selected_month, selected_day)
     if user_language == 'ru':
         msg_info = get_text(user_language, 'appointment2')
@@ -719,7 +724,7 @@ async def add_appointment_to_db(callback_query: types.CallbackQuery, state: FSMC
             await callback_query.message.edit_text(filled_confirmation_message, parse_mode="HTML")
         await state.finish()
 
-        group_chat_id = -921482477
+        group_chat_id = -1001934488072
 
         confirmation_group = (
             f"🆕 Новая запись в стоматологию\n"
@@ -1030,7 +1035,7 @@ async def set_cancel_reason(message: types.Message, state: FSMContext):
             phnum = user_info['phnum']
 
             cancel_reason = data['cancel_reason']
-            group_chat_id = -921482477
+            group_chat_id = -1001934488072
             cancel_group = (
                 f"🚫 Запись в стоматологию отменена\n"
                 f"<b>ФИО</b>: {name}\n"

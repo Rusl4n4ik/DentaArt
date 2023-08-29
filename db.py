@@ -37,7 +37,7 @@ class Admins(Base):
 class Price(Base):
     __tablename__ = "prices"
     id = Column(Integer, primary_key=True, index=True)
-    service = Column(String, index=True, unique=True)
+    service = Column(String(100), index=True, unique=True)
     price = Column(String)
 
 
@@ -122,13 +122,12 @@ def get_appointments_on_day_off(db: Session, year: int, month: int, day: int):
 
 
 def get_available_hours(appointments_on_day, appointments_on_day_off):
-    all_hours = set([f"{hour:02d}:{minute:02d}" for hour in range(8, 19) for minute in (0, 30) if not (hour == 18 and minute > 0)])
-    booked_hours_appointments = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day])
-    booked_hours_offline = set([appointment.time.strftime("%H:%M") for appointment in appointments_on_day_off])
+    all_hours = set(f"{hour:02d}:{minute:02d}" for hour in range(8, 18) for minute in (0,))
+    booked_hours_appointments = {appointment.time.strftime("%H:%M") for appointment in appointments_on_day}
+    booked_hours_offline = {appointment.time.strftime("%H:%M") for appointment in appointments_on_day_off}
     booked_hours = booked_hours_appointments.union(booked_hours_offline)
     available_hours = all_hours - booked_hours
     return available_hours
-
 
 
 def get_user_language(session, id: int):

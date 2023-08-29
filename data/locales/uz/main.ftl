@@ -5,12 +5,12 @@ fill_info2 = <b>Ma'lumotlarni to'ldirish 2/2📝</b>
 fill_info_error1 = ⚠️ Ko'rsatib o'taylik, ismingizni noto'g'ri formatda kiritdingiz. Iltimos, ismingizni to'liq formatda (familiya Ism Ota ism) kiritishingizni tekshiring. Qayta urinib ko'ring:
 fill_info_error2 = ⚠️ Noto'g'ri telefon raqami formati. Telefon raqamini '+998XXXXXXXXX' formatida kiriting.
 loading = Ma'lumot yuklanmoqda...
-info = 🏥 <b>Denta Art</b> - bu to'liq xizmat ko'rsatadigan so'nggi zamon stamatologiya klinika.
+info = 🏥 <b>Sadullayev Denta Art</b> - bu to'liq xizmat ko'rsatadigan so'nggi zamon stamatologiya klinika.
       <b>Manzil va aloqalarimiz:</b> <i> Samarqand sh. Fitrat ko'chasi, 47,</i> <u>+998902706390</u>.
       <b>Direktor:</b> Anvar Sodullaev
       <b>Ish vaqti:</b> Soat 8:00 dan 18:00 gacha
 loading_price = Narxlarni yuklash...
-price_info = 💵 "Denta Art" stamatologiyasi narxi:
+price_info = 💵 "Sadullayev Denta Art" stamatologiyasi narxi:
 cabinet = Shaxsiy kabinet
 cabinet1 = <b>Sizning ismingiz:</b> {name}
             <b>Sizning telefon raqamingiz:</b> {num}
@@ -20,7 +20,7 @@ cabinet1 = <b>Sizning ismingiz:</b> {name}
             <b><i>O'zgartirishni istagan joyingizni tanlang:</i></b>
             Agar o'zgarishlar bo'lmasa, avvalgi sahifaga qayting, "🔙Orqaga" tugmasidan foydalaning
 
-greeting = 👋Telegram bot stamatologiyasi <b>Denta Art</b>ga xush kelibsiz! Bu yerda Siz stamatologga yozilish uchun ro'yxatdan o'tishingiz mumkin. Quyidagi menyudan Siz uchun qaysi bo'limni tanlashingiz mumkin ❓Agar bot bilan ishlash haqida savollar bo'lsa, quyida ko'rsatilgan ko'rsatmalar bilan tanishing yoki <u>+998902706390</u> raqamiga murojaat qiling.
+greeting = 👋Telegram bot stamatologiyasi <b>Sadullayev Denta Art</b>ga xush kelibsiz! Bu yerda Siz stamatologga yozilish uchun ro'yxatdan o'tishingiz mumkin. Quyidagi menyudan Siz uchun qaysi bo'limni tanlashingiz mumkin ❓Agar bot bilan ishlash haqida savollar bo'lsa, quyida ko'rsatilgan ko'rsatmalar bilan tanishing yoki <u>+998902706390</u> raqamiga murojaat qiling.
 enter_name = 📝 Iltimos, yangi ismingizni kiriting, formatda 'Familiya Ism Ota ism'
 enter_num = Yangi telefon raqamingizni '+998XXXXXXXXX' formatida kiriting.
 name_update = ✅ <i>Sizning ismingiz muvaffaqiyatli yangilandi!</i>
@@ -45,7 +45,7 @@ appointment4 =
 day_error = Xatolik! Kun tanlanmadi.
 time_error = Xatolik! Vaqt haqiqiy emas.
 confirmation-message =
-      📝 Dental shifokor tayinlanishini tasdiqlash <b>Denta Art</b>
+      📝 Dental shifokor tayinlanishini tasdiqlash <b>Sadullayev Denta Art</b>
      <b>Ism</b>: { name }
      <b>Telefon raqami</b>: {phnum}
      <b>Uchrashuv sanasi</b>: {appointment_date}
@@ -55,11 +55,11 @@ confirmation-message =
      <i>Iltimos, taqdim etilgan ma'lumotlarni tekshiring. Agar hamma narsa to'g'ri bo'lsa, "✅ Kirishni tasdiqlash" tugmasini bosing. Agar siz o'zgartirish kiritmoqchi bo'lsangiz, orqaga qayting</i>
 confirmation-message2 =
      ✅ Sizning arizangiz muvaffaqiyatli tasdiqlandi!
-     Sizni <b>{appointment_date} da, {appointment_time_str}</b> da kutamiz. Agar sizda biron bir savol yoki rejalardagi o'zgarishlar bo'lsa, biz bilan oldindan bog'laning. '<b>Denta Art</b>' stomatologiyasini tanlaganingiz uchun tashakkur! 🦷
+     Sizni <b>{appointment_date} da, {appointment_time_str}</b> da kutamiz. Agar sizda biron bir savol yoki rejalardagi o'zgarishlar bo'lsa, biz bilan oldindan bog'laning. '<b>Sadullayev Denta Art</b>' stomatologiyasini tanlaganingiz uchun tashakkur! 🦷
 
     Siz asosiy menyuda "Mening hisobim" => "Mening yozuvlarim" bo'limida yozuvni bekor qilishingiz mumkin.
 notification-message1 =
-    <b>🔔 Dental eslatma</b> "Denta Art"!
+    <b>🔔 Dental eslatma</b> "Sadullayev Denta Art"!
 
 
     1 soatdan keyin, {appointment_time_str} da,
@@ -68,7 +68,7 @@ notification-message1 =
     <b>Tashrifingiz tavsifi</b>: {reason}
     Agar sizda biron bir savol yoki rejalarga o'zgartirishlar bo'lsa, +998902706390 raqamiga murojaat qiling.
 notification-message24 =
-    <b>🔔 Denta Art stamatologiyasi atrofidan eslatma</b>!
+    <b>🔔 Sadullayev Denta Art stamatologiyasi atrofidan eslatma</b>!
 
 
     Ertaga, {appointment_date}, {appointment_time_str}
@@ -110,3 +110,4 @@ change_fio = 👤 Ismni o'zgartirish
 change_phum = 📞 Telefon raqamini o'zgartiring
 change_lang = 🌎 Tilni o'zgartirish
 lang_opt = 🌎 Interfeys tilini tanlang:
+bazar = Narxlar bozor sharoitiga qarab farq qilishi mumkin
